@@ -39,10 +39,11 @@
     min-height: 16px; font-weight: 600;
   }
 
-  /* Arena - transparent bg */
+  /* Arena - transparent bg, grows to fill free space so the fighters stand
+     right above the answer area (grounded, not floating mid-screen) */
   .arena {
-    flex-shrink: 0;
-    height: clamp(220px, 48vw, 340px);
+    flex: 1 1 auto;
+    min-height: clamp(220px, 48vw, 340px);
     position: relative;
     margin: 0 4px;
     z-index: 2;
@@ -253,7 +254,7 @@
 
   /* Slots */
   .slots-area {
-    flex: 2;
+    flex: 0 0 auto;
     display: flex; flex-direction: column;
     justify-content: center; align-items: center;
     padding: 2px 8px;
