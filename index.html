@@ -547,10 +547,10 @@
 
 /* Question visual for contar / somar / sequência (hidden for números & letras) */
 .challenge-q{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 8px;
-  padding:2px 14px;font-size:clamp(26px,6.5vw,46px);font-weight:800;color:#fff;line-height:1.25;
+  padding:2px 14px;font-size:clamp(38px,9vw,62px);font-weight:800;color:#fff;line-height:1.25;
   text-shadow:0 2px 8px rgba(0,0,0,0.45);max-width:640px;margin:0 auto}
 .challenge-q .seq-blank{color:#ffe259;text-shadow:0 0 12px rgba(255,226,89,0.7)}
-.challenge-q.compact{font-size:clamp(15px,3.8vw,24px);gap:2px 5px}
+.challenge-q.compact{font-size:clamp(20px,5.2vw,32px);gap:2px 5px}
 .challenge-q .sum-group b{color:#ffe259;margin-right:3px;text-shadow:0 2px 6px rgba(0,0,0,0.5)}
 
 /* ---------- Road puzzle (rare 10% encounter): pokemon finds a Poké Ball ---------- */
@@ -1584,9 +1584,17 @@ function startFight(callback) {
     currentOpp = OPPONENTS[oppIdx];
 
     pokeRocketIdx = 0;
-    // Fresh scenery for every fight
-    document.getElementById('arena').style.backgroundImage =
-      'url(assets/bg' + (1 + Math.floor(Math.random() * 6)) + '.jpg)';
+    // Fresh scenery for every fight — full screen, behind everything
+    const bgN = 1 + Math.floor(Math.random() * 6);
+    const gameEl = document.querySelector('.game');
+    const bgCss = 'linear-gradient(rgba(26,26,46,0.18), rgba(26,26,46,0.38)), url(assets/bg' + bgN + '.jpg)';
+    gameEl.style.backgroundImage = bgCss;
+    gameEl.style.backgroundSize = 'cover';
+    gameEl.style.backgroundPosition = 'center';
+    document.body.style.backgroundImage = bgCss;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+    document.getElementById('arena').style.backgroundImage = '';
     setPokeImage(currentPoke);
     buildOppRow();
 
@@ -2234,9 +2242,10 @@ function drawMiniShape(ctx, type, s, t) {
     ctx.beginPath(); ctx.arc(-s * 0.2, s * 0.1, s * 0.22, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
   } else if (type === 'electric') {
-    // mini zigzag bolt
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    ctx.shadowColor = P.mid; ctx.shadowBlur = 12;
+    // mini zigzag bolt: thick yellow glow stroke + white core
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 18;
+    ctx.strokeStyle = P.mid; ctx.lineWidth = Math.max(5, s * 0.32);
     ctx.beginPath();
     ctx.moveTo(-s * 0.3, -s);
     ctx.lineTo(s * 0.25, -s * 0.25);
@@ -2244,6 +2253,8 @@ function drawMiniShape(ctx, type, s, t) {
     ctx.lineTo(s * 0.3, s);
     ctx.stroke();
     ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2.5, s * 0.14);
+    ctx.stroke();
   } else if (type === 'ice') {
     drawShape(ctx, 'snow', s, { core: P.core, mid: P.mid }, null, t);
   } else if (type === 'grass') {
@@ -2275,28 +2286,30 @@ function drawMiniShape(ctx, type, s, t) {
 // Standard attack: two small type-shaped projectiles arc into the enemy — nothing full-screen
 function projectileFX(type, x0, y0, x1, y1) {
   runFx(function(ctx, W, H, t, p) {
-    [0, 0.13].forEach(function(off) {
-      const f = (t - off) / 0.42;
+    [0, 0.09, 0.18, 0.27].forEach(function(off, gi) {
+      const f = (t - off) / 0.58;
       if (f < 0 || f > 1) return;
       const x = x0 + (x1 - x0) * f;
       const y = y0 + (y1 - y0) * f + Math.sin(f * Math.PI) * -34;
-      // faint trailing ghost
-      const fb = Math.max(0, f - 0.09);
-      ctx.globalAlpha = 0.3;
-      ctx.save();
-      ctx.translate(x0 + (x1 - x0) * fb, y0 + (y1 - y0) * fb + Math.sin(fb * Math.PI) * -34);
-      ctx.scale(0.6, 0.6);
-      drawMiniShape(ctx, type, 13, t);
-      ctx.restore();
-      ctx.globalAlpha = 1;
-      // projectile
+      // trailing ghosts (bigger, brighter the closer to the head)
+      if (gi > 0) {
+        ctx.globalAlpha = 0.18 + gi * 0.08;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(0.5 + gi * 0.12, 0.5 + gi * 0.12);
+        drawMiniShape(ctx, type, 30, t);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+        return;
+      }
+      // projectile head
       ctx.save();
       ctx.translate(x, y);
-      if (TUMBLE_TYPES[type]) ctx.rotate(f * 5 + off * 20);
-      drawMiniShape(ctx, type, 13, t);
+      if (TUMBLE_TYPES[type]) ctx.rotate(f * 5);
+      drawMiniShape(ctx, type, 30, t);
       ctx.restore();
     });
-  }, 620);
+  }, 900);
 }
 
 // Drawn impact starburst + ring where the attack lands
@@ -2306,16 +2319,16 @@ function impactBurstFX(type, x, y) {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(p * 0.5);
     ctx.globalAlpha = 1 - p;
-    ctx.fillStyle = P.core; ctx.strokeStyle = P.edge; ctx.lineWidth = 3;
-    ctx.shadowColor = P.mid; ctx.shadowBlur = 18;
-    star8(ctx, 14 + p * 54);
+    ctx.fillStyle = P.core; ctx.strokeStyle = P.edge; ctx.lineWidth = 4;
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 24;
+    star8(ctx, 22 + p * 70);
     ctx.restore();
     ctx.globalAlpha = (1 - p) * 0.9;
-    ctx.strokeStyle = P.core; ctx.lineWidth = 4;
+    ctx.strokeStyle = P.core; ctx.lineWidth = 5;
     ctx.shadowBlur = 0;
-    ctx.beginPath(); ctx.arc(x, y, 10 + p * 90, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 14 + p * 110, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
-  }, 500);
+  }, 550);
 }
 
 function triggerPokemonAttack() {
@@ -2352,21 +2365,21 @@ function triggerPokemonAttack() {
   pokeImg.className = 'char-img poke-img ' + fx.cls;
   setTimeout(() => { pokeImg.className = 'char-img poke-img'; }, 600);
 
-  // Impact on the target: drawn starburst + arena shake
+  // Impact on the target: drawn starburst + arena shake (timed to the 0.58s flight)
   setTimeout(() => {
     if (!tr) return;
     impactBurstFX(type, toX, toY);
     arena.classList.add('shake');
     setTimeout(() => arena.classList.remove('shake'), 420);
-  }, 430);
+  }, 600);
 
   // One opponent member gets hit and blasts off
   if (target) {
-    setTimeout(() => target.classList.add('hit'), 420);
+    setTimeout(() => target.classList.add('hit'), 600);
     setTimeout(() => {
       target.classList.remove('hit');
       target.classList.add('blast');
-    }, 720);
+    }, 900);
   }
 
   pokeRocketIdx++;
