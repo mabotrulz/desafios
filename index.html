@@ -46,6 +46,9 @@
     position: relative;
     margin: 0 4px;
     z-index: 2;
+    border-radius: 14px;
+    background-size: cover;
+    background-position: center bottom;
   }
   /* Lift the whole arena stacking context while the wild stage is up,
      so the full-screen grass paints over the header, slots and number pool */
@@ -547,6 +550,33 @@
   padding:2px 14px;font-size:clamp(26px,6.5vw,46px);font-weight:800;color:#fff;line-height:1.25;
   text-shadow:0 2px 8px rgba(0,0,0,0.45);max-width:640px;margin:0 auto}
 .challenge-q .seq-blank{color:#ffe259;text-shadow:0 0 12px rgba(255,226,89,0.7)}
+.challenge-q.compact{font-size:clamp(15px,3.8vw,24px);gap:2px 5px}
+.challenge-q .sum-group b{color:#ffe259;margin-right:3px;text-shadow:0 2px 6px rgba(0,0,0,0.5)}
+
+/* ---------- Road puzzle (rare 10% encounter): pokemon finds a Poké Ball ---------- */
+.road-overlay{position:fixed;inset:0;z-index:200;display:none;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px;background:linear-gradient(180deg,#2d4a3e,#3a5a4a)}
+.road-overlay.active{display:flex}
+.road-label{color:#fff;font-size:clamp(14px,3.4vw,19px);font-weight:800;text-shadow:0 2px 6px rgba(0,0,0,0.4);text-align:center;padding:2px 10px}
+.road-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(2px,0.5vw,4px);width:min(92vw,430px,56vh);aspect-ratio:1;padding:4px}
+.road-card{position:relative;border-radius:6px;overflow:hidden;border:2px solid #5a7a5a;background:#4a6a4a;min-width:0}
+.road-card.forest{background:#3d6b3d}
+.road-card.road{border-color:#8a7a5a}
+.road-card.missing{border-color:#f1c40f;border-style:dashed;background:rgba(241,196,15,0.08)}
+.road-card.missing .qmark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(16px,4vw,30px);color:#f1c40f;font-weight:700}
+@keyframes pulseGlow{0%,100%{border-color:#f1c40f;box-shadow:0 0 5px rgba(241,196,15,0.3)}50%{border-color:#fff7a0;box-shadow:0 0 20px rgba(241,196,15,0.8)}}
+.road-card.active-missing{animation:pulseGlow 1.2s ease-in-out infinite}
+.road-card.filled{border-color:#4ecca3;animation:popIn 0.3s ease}
+@keyframes popIn{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+.road-card img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.road-card .walker{position:absolute;object-fit:contain;pointer-events:none;z-index:2;width:82%;height:82%;left:9%;top:9%;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))}
+.road-choices{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(6px,1.4vw,10px);width:min(92vw,430px,56vh);padding:4px}
+.road-choice{background:#3a5a3a;border:3px solid #5a7a5a;border-radius:10px;padding:3px;cursor:pointer;transition:all 0.15s;aspect-ratio:1;position:relative}
+.road-choice:active{transform:scale(0.94)}
+.road-choice.correct{border-color:#4ecca3;background:rgba(78,204,163,0.2)}
+.road-choice.wrong{border-color:#e74c3c;background:rgba(231,76,60,0.2);animation:shake 0.35s}
+.road-choice img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;border-radius:6px}
+.road-feedback{min-height:20px;font-size:clamp(13px,3vw,16px);font-weight:800;color:#fff;text-shadow:0 2px 4px rgba(0,0,0,0.4)}
+.road-feedback.ok{color:#55efc4}.road-feedback.fail{color:#ff7675}
 </style>
 </head>
 <body>
@@ -583,6 +613,14 @@
         <div class="wild-hint" id="wildHint">Toca na Poké Ball!</div>
       </div>
     </div>
+  </div>
+
+  <!-- Rare road puzzle: the active pokémon finds a Master Ball (outside .arena: fixed positioning) -->
+  <div class="road-overlay" id="roadOverlay">
+    <div class="road-label" id="roadLabel">🗺️ Liga o caminho até à Poké Ball!</div>
+    <div class="road-grid" id="roadGrid"></div>
+    <div class="road-feedback" id="roadFeedback"></div>
+    <div class="road-choices" id="roadChoices"></div>
   </div>
 
   <!-- Slots -->
@@ -882,6 +920,8 @@ function proceedNextRound() {
 }
 
 function startWildEncounter() {
+  // Rare treat: 10% of encounters are a road puzzle instead — the pokémon hunts a Master Ball
+  if (Math.random() < 0.10) { startRoadPuzzle(); return; }
   wild = POKEDEX[Math.floor(Math.random() * POKEDEX.length)];
   captureMode = false;
   document.getElementById('arena').classList.add('wild-active');
@@ -915,6 +955,250 @@ function endWildEncounter() {
   document.getElementById('wildOverlay').classList.remove('active');
   document.getElementById('wildOverlay').classList.remove('catch-mode');
   document.body.classList.remove('catching');
+  proceedNextRound();
+}
+
+// ---------- Rare road puzzle (10% of encounters): the active pokémon hunts a Master Ball ----------
+// Ported from Via Gálica: 5×5 board of road cards, a snake path from one edge to another,
+// 2 missing pieces the child fills in, then the pokémon walks the road to the ball.
+const ROAD_GRID_N = 5;
+const ROAD_FOREST = ['forest_0_6.png', 'forest_1_1.png', 'forest_1_2.png', 'forest_2_0.png', 'forest_2_5.png', 'forest_3_2.png', 'forest_3_7.png', 'forest_4_1.png', 'forest_4_2.png', 'forest_5_3.png', 'forest_5_4.png', 'forest_5_6.png', 'forest_6_1.png', 'forest_6_2.png', 'forest_6_3.png', 'forest_6_7.png', 'forest_7_0.png', 'forest_7_2.png', 'forest_7_4.png', 'forest_7_7.png'];
+let roadPuzzleActive = false;
+let roadP = null; // {grid, path, entry, exit, missing, answers}
+
+function generateRoadPath() {
+  const G = ROAD_GRID_N;
+  const grid = Array(G).fill().map(() => Array(G).fill(0));
+  const dirs = [[-1,0],[0,1],[1,0],[0,-1]]; // N,E,S,W
+  const entryEdge = Math.floor(Math.random() * 4);
+  let exitEdge; do { exitEdge = Math.floor(Math.random() * 4); } while (exitEdge === entryEdge);
+
+  let cr, cc;
+  if (entryEdge === 0) { cr = 0; cc = Math.floor(Math.random() * G); }
+  else if (entryEdge === 1) { cr = Math.floor(Math.random() * G); cc = G - 1; }
+  else if (entryEdge === 2) { cr = G - 1; cc = Math.floor(Math.random() * G); }
+  else { cr = Math.floor(Math.random() * G); cc = 0; }
+
+  const path = [[cr, cc]];
+  const used = {}; used[cr + ',' + cc] = true;
+  let dir = entryEdge === 0 ? 2 : entryEdge === 1 ? 3 : entryEdge === 2 ? 0 : 1;
+
+  for (let i = 0; i < G * G; i++) {
+    let nr = cr + dirs[dir][0], nc = cc + dirs[dir][1];
+    if (nr < 0 || nr >= G || nc < 0 || nc >= G || used[nr + ',' + nc]) {
+      let turned = false;
+      for (const td of [(dir + 1) % 4, (dir + 3) % 4, (dir + 2) % 4]) {
+        nr = cr + dirs[td][0]; nc = cc + dirs[td][1];
+        if (nr >= 0 && nr < G && nc >= 0 && nc < G && !used[nr + ',' + nc]) { dir = td; turned = true; break; }
+      }
+      if (!turned) break;
+    }
+    cr = nr; cc = nc;
+    path.push([cr, cc]); used[cr + ',' + cc] = true;
+    const atEdge = (exitEdge === 0 && cr === 0) || (exitEdge === 1 && cc === G - 1) ||
+                   (exitEdge === 2 && cr === G - 1) || (exitEdge === 3 && cc === 0);
+    if (atEdge && path.length >= 5) break;
+  }
+
+  // Fallback: guaranteed zigzag through the middle
+  if (path.length < 6) {
+    path.length = 0;
+    let r = entryEdge === 0 ? 0 : entryEdge === 2 ? G - 1 : Math.floor(Math.random() * G);
+    let c = entryEdge === 1 ? G - 1 : entryEdge === 3 ? 0 : Math.floor(Math.random() * G);
+    path.push([r, c]);
+    const midR = Math.floor(G / 2), targetC = G - 1 - c;
+    while (r !== midR) { r += r < midR ? 1 : -1; path.push([r, c]); }
+    while (c !== targetC) { c += c < targetC ? 1 : -1; path.push([r, c]); }
+    if (exitEdge === 0) while (r > 0) { r--; path.push([r, c]); }
+    else if (exitEdge === 2) while (r < G - 1) { r++; path.push([r, c]); }
+    else if (exitEdge === 1) while (c < G - 1) { c++; path.push([r, c]); }
+    else while (c > 0) { c--; path.push([r, c]); }
+  }
+
+  // Assign piece types from connections (1=│ 2=─ 3=└ 4=┌ 5=┐ 6=┘)
+  for (let i = 0; i < path.length; i++) {
+    const conn = [0, 0, 0, 0];
+    if (i > 0) {
+      const dr = path[i][0] - path[i-1][0], dc = path[i][1] - path[i-1][1];
+      if (dr === 1) conn[0] = 1; if (dr === -1) conn[2] = 1;
+      if (dc === 1) conn[3] = 1; if (dc === -1) conn[1] = 1;
+    }
+    if (i < path.length - 1) {
+      const dr = path[i+1][0] - path[i][0], dc = path[i+1][1] - path[i][1];
+      if (dr === 1) conn[2] = 1; if (dr === -1) conn[0] = 1;
+      if (dc === 1) conn[1] = 1; if (dc === -1) conn[3] = 1;
+    }
+    let type = 1;
+    if (conn[0] && conn[2]) type = 1;
+    else if (conn[1] && conn[3]) type = 2;
+    else if (conn[0] && conn[1]) type = 3;
+    else if (conn[1] && conn[2]) type = 4;
+    else if (conn[2] && conn[3]) type = 5;
+    else if (conn[0] && conn[3]) type = 6;
+    else if (conn[1] || conn[3]) type = 2;
+    grid[path[i][0]][path[i][1]] = type;
+  }
+  return { grid, path, entry: path[0], exit: path[path.length - 1] };
+}
+
+function startRoadPuzzle() {
+  roadPuzzleActive = true;
+  clearInterval(hintTimer);
+  const data = generateRoadPath();
+
+  // 2 missing pieces from the middle of the path
+  const candidates = [];
+  for (let i = 1; i < data.path.length - 1; i++) candidates.push({ r: data.path[i][0], c: data.path[i][1] });
+  shuffle(candidates);
+  const missing = candidates.slice(0, Math.min(2, candidates.length));
+  const answers = missing.map(p => data.grid[p.r][p.c]);
+  missing.forEach(p => { data.grid[p.r][p.c] = 0; });
+  roadP = { grid: data.grid, path: data.path, entry: data.entry, exit: data.exit, missing, answers };
+
+  // Render board
+  const g = document.getElementById('roadGrid');
+  g.innerHTML = '';
+  for (let r = 0; r < ROAD_GRID_N; r++) {
+    for (let c = 0; c < ROAD_GRID_N; c++) {
+      const card = document.createElement('div');
+      card.className = 'road-card';
+      const isMissing = missing.some(p => p.r === r && p.c === c);
+      if (isMissing) {
+        card.classList.add('missing');
+        if (missing[0].r === r && missing[0].c === c) card.classList.add('active-missing');
+        card.innerHTML = '<div class="qmark">?</div>';
+      } else if (data.grid[r][c] > 0) {
+        card.classList.add('road');
+        const img = document.createElement('img');
+        img.src = 'assets/cards/GoodGen_' + data.grid[r][c] + '.png';
+        card.appendChild(img);
+        if (r === data.entry[0] && c === data.entry[1]) {
+          const w = document.createElement('img');
+          w.className = 'walker'; w.id = 'roadWalker';
+          w.src = 'assets/' + currentPoke.file;
+          card.appendChild(w);
+        }
+        if (r === data.exit[0] && c === data.exit[1]) {
+          const b = document.createElement('img');
+          b.className = 'walker';
+          b.src = 'assets/masterball.png';
+          card.appendChild(b);
+        }
+      } else {
+        card.classList.add('forest');
+        const img = document.createElement('img');
+        img.src = 'assets/cards/' + ROAD_FOREST[Math.floor(Math.random() * ROAD_FOREST.length)];
+        card.appendChild(img);
+      }
+      g.appendChild(card);
+    }
+  }
+
+  // Choices: the 2 correct types + 2 distractors
+  let choices = [...new Set(answers)];
+  const allTypes = shuffle([1, 2, 3, 4, 5, 6]);
+  for (const t of allTypes) { if (choices.length >= 4) break; if (!choices.includes(t)) choices.push(t); }
+  shuffle(choices);
+  const cd = document.getElementById('roadChoices');
+  cd.innerHTML = '';
+  choices.forEach(type => {
+    const btn = document.createElement('div');
+    btn.className = 'road-choice';
+    btn.dataset.type = type;
+    const img = document.createElement('img');
+    img.src = 'assets/cards/GoodGen_' + type + '.png';
+    btn.appendChild(img);
+    btn.addEventListener('click', () => pickRoadChoice(btn, type));
+    cd.appendChild(btn);
+  });
+
+  document.getElementById('roadFeedback').textContent = '';
+  document.getElementById('roadLabel').textContent = '🗺️ Liga o caminho até à Poké Ball!';
+  document.getElementById('roadOverlay').classList.add('active');
+  speakMix([{ pt: 'Uma Master Ball escondida! Ajuda o ' }, { en: currentPoke.name }, { pt: ' a completar o caminho!' }]);
+}
+
+function pickRoadChoice(btn, type) {
+  if (!roadPuzzleActive || !roadP) return;
+  const nextIdx = roadP.missing.findIndex(p => roadP.grid[p.r][p.c] === 0);
+  if (nextIdx < 0) return;
+  const pos = roadP.missing[nextIdx];
+
+  if (type === roadP.answers[nextIdx]) {
+    btn.classList.add('correct');
+    roadP.grid[pos.r][pos.c] = type;
+    const card = document.querySelectorAll('#roadGrid .road-card')[pos.r * ROAD_GRID_N + pos.c];
+    if (card) {
+      card.className = 'road-card road filled';
+      card.innerHTML = '<img src="assets/cards/GoodGen_' + type + '.png">';
+    }
+    sfxCorrect();
+    const fb = document.getElementById('roadFeedback');
+    fb.textContent = '✅ Correto!'; fb.className = 'road-feedback ok';
+    const next = roadP.missing.find(p => roadP.grid[p.r][p.c] === 0);
+    document.querySelectorAll('#roadGrid .road-card').forEach(c => c.classList.remove('active-missing'));
+    if (next) {
+      const nc = document.querySelectorAll('#roadGrid .road-card')[next.r * ROAD_GRID_N + next.c];
+      if (nc) nc.classList.add('active-missing');
+    } else {
+      setTimeout(roadWalk, 700);
+    }
+  } else {
+    btn.classList.add('wrong');
+    sfxWrong();
+    const fb = document.getElementById('roadFeedback');
+    fb.textContent = '❌ Não encaixa!'; fb.className = 'road-feedback fail';
+    // Re-shuffle choices so he re-reads the pieces
+    const cd = document.getElementById('roadChoices');
+    const btns = [...cd.children];
+    for (let i = btns.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      cd.insertBefore(btns[j], btns[i]);
+    }
+    setTimeout(() => btn.classList.remove('wrong'), 700);
+  }
+}
+
+function roadWalk() {
+  const walker = document.getElementById('roadWalker');
+  if (!walker) { endRoadPuzzle(); return; }
+  const cards = document.querySelectorAll('#roadGrid .road-card');
+  const rect = walker.getBoundingClientRect();
+  walker.style.cssText = 'position:fixed;z-index:100;left:' + rect.left + 'px;top:' + rect.top + 'px;' +
+    'width:' + rect.width + 'px;height:' + rect.height + 'px;object-fit:contain;pointer-events:none;transition:left 0.25s ease,top 0.25s ease';
+  let step = 0;
+  speakMix([{ pt: 'Vai ' }, { en: currentPoke.name }, { pt: '!' }]);
+  (function walkStep() {
+    if (step >= roadP.path.length) {
+      // Arrived: Master Ball found!
+      masterBalls++;
+      saveMasterBalls();
+      sfxCorrect();
+      walker.style.transition = 'all 0.5s ease';
+      walker.style.transform = 'scale(1.3)';
+      document.getElementById('roadLabel').textContent = '🎉 Encontrou uma Master Ball!';
+      const fb = document.getElementById('roadFeedback');
+      fb.textContent = ''; fb.className = 'road-feedback';
+      speakMix([{ pt: 'Boa! O ' }, { en: currentPoke.name }, { pt: ' encontrou uma Master Ball!' }]);
+      setTimeout(() => { if (walker.parentNode) walker.remove(); endRoadPuzzle(); }, 2400);
+      return;
+    }
+    const pos = roadP.path[step];
+    const card = cards[pos[0] * ROAD_GRID_N + pos[1]];
+    if (card) {
+      const r = card.getBoundingClientRect();
+      walker.style.left = (r.left + r.width * 0.09) + 'px';
+      walker.style.top = (r.top + r.height * 0.09) + 'px';
+    }
+    step++;
+    setTimeout(walkStep, 280);
+  })();
+}
+
+function endRoadPuzzle() {
+  roadPuzzleActive = false;
+  roadP = null;
+  document.getElementById('roadOverlay').classList.remove('active');
   proceedNextRound();
 }
 
@@ -1070,43 +1354,57 @@ const COUNT_ITEMS = [
 ];
 let currentChallenge = null;
 
+// Progressive difficulty: the value ceiling grows round by round.
+// Phase 1 ramps 5 → 10, phase 2 ramps 12 → 20.
+function currentMax() {
+  return phase === 1 ? Math.min(10, 5 + roundInPhase) : Math.min(20, 12 + roundInPhase);
+}
+
 function makeChallenge() {
   const MODES = ['numeros', 'contar', 'somar', 'sequencia', 'letras'];
   const mode = MODES[Math.floor(Math.random() * MODES.length)];
-  const ch = { mode, questionHTML: '', hint: '', speakText: '', slots: [], pool: [] };
+  const ch = { mode, questionHTML: '', hint: '', speakText: '', slots: [], pool: [], itemCount: 0 };
   const numPool = () => getPoolForPhase(phase).map(String);
+  const max = currentMax();
 
   if (mode === 'numeros') {
-    const n = phase === 1 ? Math.floor(Math.random() * 10) : 10 + Math.floor(Math.random() * 11);
+    const n = phase === 1 ? Math.floor(Math.random() * (max + 1)) : 10 + Math.floor(Math.random() * (max - 9));
     ch.slots = getNumberDigits(n).map(String);
     ch.pool = numPool();
     ch.hint = 'Onde está o número?';
     ch.speakText = 'Onde está o ' + NUM_NAMES[n] + '?';
 
   } else if (mode === 'contar') {
-    const n = phase === 1 ? 1 + Math.floor(Math.random() * 9) : 10 + Math.floor(Math.random() * 6);
+    const n = phase === 1 ? 1 + Math.floor(Math.random() * max) : 10 + Math.floor(Math.random() * (max - 9));
     const item = COUNT_ITEMS[Math.floor(Math.random() * COUNT_ITEMS.length)];
     ch.slots = getNumberDigits(n).map(String);
     ch.pool = numPool();
+    ch.itemCount = n;
     ch.questionHTML = Array(n).fill(item.emoji).join(' ');
     ch.hint = (item.f ? 'Quantas' : 'Quantos') + ' vês?';
     ch.speakText = (item.f ? 'Quantas ' : 'Quantos ') + item.name + ' vês?';
 
   } else if (mode === 'somar') {
-    let a, b;
-    if (phase === 1) { a = 1 + Math.floor(Math.random() * 5); b = 1 + Math.floor(Math.random() * (9 - a)); }
-    else { do { a = 2 + Math.floor(Math.random() * 9); b = 2 + Math.floor(Math.random() * 9); } while (a + b < 10 || a + b > 20); }
-    const n = a + b;
-    ch.slots = getNumberDigits(n).map(String);
+    // Countable elements under each operand so he can point and count
+    let sum, a, b;
+    if (phase === 1) { sum = 2 + Math.floor(Math.random() * (max - 1)); a = 1 + Math.floor(Math.random() * (sum - 1)); }
+    else { sum = 10 + Math.floor(Math.random() * (max - 9)); a = 2 + Math.floor(Math.random() * (sum - 3)); }
+    b = sum - a;
+    const item = COUNT_ITEMS[Math.floor(Math.random() * COUNT_ITEMS.length)];
+    ch.slots = getNumberDigits(sum).map(String);
     ch.pool = numPool();
-    ch.questionHTML = a + ' + ' + b + ' = <span class="seq-blank">?</span>';
+    ch.itemCount = sum;
+    ch.questionHTML =
+      '<span class="sum-group"><b>' + a + '</b>' + Array(a).fill(item.emoji).join('') + '</span>' +
+      ' + <span class="sum-group"><b>' + b + '</b>' + Array(b).fill(item.emoji).join('') + '</span>' +
+      ' = <span class="seq-blank">?</span>';
     ch.hint = 'Faz a soma!';
     ch.speakText = 'Quanto é ' + NUM_NAMES[a] + ' mais ' + NUM_NAMES[b] + '?';
 
   } else if (mode === 'sequencia') {
     let seq, ans;
     if (phase === 1) {
-      const start = Math.floor(Math.random() * 6);          // answer = start+3, max 8
+      const start = Math.floor(Math.random() * (max - 2));   // answer = start+3 ≤ max
       seq = [start, start + 1, start + 2]; ans = start + 3;
     } else {
       const s = [2, 5, 10][Math.floor(Math.random() * 3)];
@@ -1145,6 +1443,7 @@ function presentChallenge(ch) {
   const q = document.getElementById('challengeQ');
   q.innerHTML = ch.questionHTML;
   q.style.display = ch.questionHTML ? 'flex' : 'none';
+  q.classList.toggle('compact', (ch.itemCount || 0) > 12);
   buildChallenge(ch);
   speak(ch.speakText);
   clearInterval(hintTimer);
@@ -1285,6 +1584,9 @@ function startFight(callback) {
     currentOpp = OPPONENTS[oppIdx];
 
     pokeRocketIdx = 0;
+    // Fresh scenery for every fight
+    document.getElementById('arena').style.backgroundImage =
+      'url(assets/bg' + (1 + Math.floor(Math.random() * 6)) + '.jpg)';
     setPokeImage(currentPoke);
     buildOppRow();
 
@@ -1325,38 +1627,34 @@ function startFight(callback) {
       overlay.appendChild(nameEl);
       overlay.classList.add('active');
 
-      // Speak "contra {name}!" now that they're visible
+      // Speak "contra {name}!" now that they're visible.
+      // The fight MUST start even if the speech engine drops the utterance:
+      // iOS Safari often never fires onend/onerror after a cancel() race,
+      // which used to leave the game stuck on this intro screen forever.
+      var finishIntro = function() {
+        if (finishIntro.done) return; finishIntro.done = true;
+        clearTimeout(finishIntro._wd);
+        overlay.classList.remove('active');
+        setTimeout(function() {
+          overlay.innerHTML = '<img class="intro-char" id="introImage" src="" alt=""><div class="intro-name" id="introName"></div>';
+          overlay.style.display = '';
+          overlay.style.flexDirection = '';
+          overlay.style.alignItems = '';
+          overlay.style.justifyContent = '';
+        }, 400);
+        document.getElementById('pokeSide').style.opacity = '1';
+        document.getElementById('rocketSide').style.opacity = '1';
+        if (callback) callback();
+      };
       if (window.speechSynthesis) {
         var u = new SpeechSynthesisUtterance('contra ' + currentOpp.name + '!');
         u.lang = 'en-US'; u.rate = 0.85;
-        u.onend = function() {
-          overlay.classList.remove('active');
-          setTimeout(function() {
-            overlay.innerHTML = '<img class="intro-char" id="introImage" src="" alt=""><div class="intro-name" id="introName"></div>';
-            overlay.style.display = '';
-            overlay.style.flexDirection = '';
-            overlay.style.alignItems = '';
-            overlay.style.justifyContent = '';
-          }, 400);
-          document.getElementById('pokeSide').style.opacity = '1';
-          document.getElementById('rocketSide').style.opacity = '1';
-          if (callback) callback();
-        };
+        u.onend = finishIntro;
+        u.onerror = finishIntro;
+        finishIntro._wd = setTimeout(finishIntro, 2600); // watchdog
         window.speechSynthesis.speak(u);
       } else {
-        setTimeout(function() {
-          overlay.classList.remove('active');
-          setTimeout(function() {
-            overlay.innerHTML = '<img class="intro-char" id="introImage" src="" alt=""><div class="intro-name" id="introName"></div>';
-            overlay.style.display = '';
-            overlay.style.flexDirection = '';
-            overlay.style.alignItems = '';
-            overlay.style.justifyContent = '';
-          }, 400);
-          document.getElementById('pokeSide').style.opacity = '1';
-          document.getElementById('rocketSide').style.opacity = '1';
-          if (callback) callback();
-        }, 1500);
+        setTimeout(finishIntro, 1500);
       }
     });
   }
@@ -1365,7 +1663,7 @@ function loadRound() {
   isWin = false;
   if (phase === 1 && roundInPhase >= ROUNDS_PER_PHASE) { phase = 2; roundInPhase = 0; }
 
-  document.getElementById('phaseDisplay').textContent = phase === 1 ? '0-9' : '10-20';
+  document.getElementById('phaseDisplay').textContent = (phase === 1 ? '0-' : '10-') + currentMax();
   document.getElementById('roundDisplay').textContent = (roundInPhase + 1) + '/' + ROUNDS_PER_PHASE;
 
   // Fight won (evolution already happened right after the last attack) → next fight or win
@@ -1460,7 +1758,7 @@ function buildChallenge(ch) {
 }
 
 function handleNumberDrop(value, slotEl, sourceEl) {
-  if (isWin || !slotEl || slotEl.classList.contains('filled')) return;
+  if (isWin || roadPuzzleActive || !slotEl || slotEl.classList.contains('filled')) return;
   const expected = slotEl.dataset.expected;
   value = String(value);
 
