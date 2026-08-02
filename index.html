@@ -29,6 +29,29 @@
     text-align: center; padding: 6px 12px 2px;
     flex-shrink: 0; z-index: 2; position: relative;
   }
+  /* Story: recovered pokéballs HUD (pure CSS balls — no emoji font dependency) */
+  .balls-hud { display: flex; justify-content: center; gap: 5px; min-height: 16px; margin: 1px 0; }
+  .balls-hud .pb {
+    width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid rgba(30,30,30,0.85);
+    background: linear-gradient(to bottom, rgba(150,150,150,0.7) 0 45%, rgba(30,30,30,0.85) 45% 55%, rgba(220,220,220,0.7) 55% 100%);
+    opacity: 0.45; transition: all 0.4s; display: inline-block;
+  }
+  .balls-hud .pb.got {
+    background: linear-gradient(to bottom, #ee5253 0 45%, #2b2b2b 45% 55%, #ffffff 55% 100%);
+    opacity: 1; transform: scale(1.2); box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+  }
+  .balls-hud .pb.pop { animation: pbPop 0.6s ease-out; }
+  @keyframes pbPop { 0%{transform:scale(0.3) rotate(-30deg)} 60%{transform:scale(1.7) rotate(10deg)} 100%{transform:scale(1.2) rotate(0)} }
+  /* Story toast banner */
+  .story-toast {
+    position: fixed; top: -80px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #fff8e1, #ffe9b3); color: #6b4a00;
+    font-weight: 800; font-size: clamp(12px, 3vw, 16px); text-align: center;
+    padding: 10px 18px; border-radius: 14px; z-index: 170; max-width: 88vw;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35); border: 2px solid #ffd54f;
+    transition: top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none;
+  }
+  .story-toast.show { top: 12px; }
   .header h1 {
     color: #ffe259; font-size: clamp(13px, 3vw, 18px);
     font-weight: 900; letter-spacing: 2px;
@@ -68,6 +91,28 @@
     object-fit: contain;
     image-rendering: auto;
     transition: all 0.3s;
+  }
+  /* Idle breathing — low specificity so attacks/hits/blast-offs override it */
+  .char-img { animation: idleBob 2.6s ease-in-out infinite; }
+  .rocket-img { animation-duration: 3.2s; animation-delay: 0.7s; }
+  @keyframes idleBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  /* Celebration: bouncing ball + happy jump */
+  .celebrate-ball {
+    position: fixed; bottom: 18vh; left: -60px; font-size: 44px; z-index: 130;
+    pointer-events: none; animation: ballBounce 1.4s linear forwards;
+  }
+  @keyframes ballBounce {
+    0% { left: -60px; transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-70px) rotate(180deg); }
+    50% { transform: translateY(0) rotate(360deg); }
+    75% { transform: translateY(-40px) rotate(540deg); }
+    100% { left: 105vw; transform: translateY(0) rotate(720deg); }
+  }
+  .poke-img.celebrate { animation: happyJump 0.55s ease-in-out 3; }
+  @keyframes happyJump {
+    0%,100% { transform: translateY(0) rotate(0); }
+    30% { transform: translateY(-22px) rotate(-6deg); }
+    60% { transform: translateY(-22px) rotate(6deg); }
   }
   .arena-side .poke-img {
     width: clamp(140px, 32vw, 240px);
@@ -275,6 +320,15 @@
     transition: all 0.25s;
     background: rgba(255,255,255,0.12);
   }
+  /* Teaching: correct tile glows after a mistake */
+  .num-tile.teach { animation: teachGlow 0.9s ease-in-out 3; position: relative; z-index: 5; }
+  @keyframes teachGlow {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,235,59,0); transform: scale(1); }
+    50% { box-shadow: 0 0 18px 6px rgba(255,235,59,0.95); transform: scale(1.14); }
+  }
+  /* Countable items light up one-by-one while the voice counts */
+  .ci { display: inline-block; transition: transform 0.22s, filter 0.22s; }
+  .ci.lit { transform: scale(1.5); filter: drop-shadow(0 0 8px #ffeb3b); }
   .slot.filled {
     border-style: solid; border-color: #ffe259;
     background: rgba(255,226,89,0.25);
@@ -611,9 +665,11 @@
 <div class="game" id="game">
   <div class="header">
     <h1>⚡ Desafios ⚡</h1>
+    <div class="balls-hud" id="ballsHud" title="Pokébolas recuperadas"></div>
     <div class="hint" id="phraseHint">Qual é o desafio?</div>
     <button class="dex-hud-btn" id="dexHudBtn" title="Pokédex">📖</button>
   </div>
+  <div class="story-toast" id="storyToast"></div>
 
   <!-- Arena - transparent -->
   <div class="arena" id="arena">
@@ -793,6 +849,21 @@ const EVOLUTIONS = [
   {name:'Omanyte',file:'omanyte.png',evoName:'Omastar',evoFile:'omastar.png'},
   {name:'Kabuto',file:'kabuto.png',evoName:'Kabutops',evoFile:'kabutops.png'},
   {name:'Eevee',file:'eevee.png',evos:[{name:'Vaporeon',file:'vaporeon.png'},{name:'Jolteon',file:'jolteon.png'},{name:'Flareon',file:'flareon.png'}]},
+  // Second stages → final evolutions (full 3-stage lines for long-term goals)
+  {name:'Ivysaur',file:'ivysaur.png',evoName:'Venusaur',evoFile:'venusaur.png'},
+  {name:'Charmeleon',file:'charmeleon.png',evoName:'Charizard',evoFile:'charizard.png'},
+  {name:'Wartortle',file:'wartortle.png',evoName:'Blastoise',evoFile:'blastoise.png'},
+  {name:'Metapod',file:'metapod.png',evoName:'Butterfree',evoFile:'butterfree.png'},
+  {name:'Kakuna',file:'kakuna.png',evoName:'Beedrill',evoFile:'beedrill.png'},
+  {name:'Pidgeotto',file:'pidgeotto.png',evoName:'Pidgeot',evoFile:'pidgeot.png'},
+  {name:'Gloom',file:'gloom.png',evoName:'Vileplume',evoFile:'vileplume.png'},
+  {name:'Poliwhirl',file:'poliwhirl.png',evoName:'Poliwrath',evoFile:'poliwrath.png'},
+  {name:'Kadabra',file:'kadabra.png',evoName:'Alakazam',evoFile:'alakazam.png'},
+  {name:'Machoke',file:'machoke.png',evoName:'Machamp',evoFile:'machamp.png'},
+  {name:'Weepinbell',file:'weepinbell.png',evoName:'Victreebel',evoFile:'victreebel.png'},
+  {name:'Graveler',file:'graveler.png',evoName:'Golem',evoFile:'golem.png'},
+  {name:'Haunter',file:'haunter.png',evoName:'Gengar',evoFile:'gengar.png'},
+  {name:'Dragonair',file:'dragonair.png',evoName:'Dragonite',evoFile:'dragonite.png'},
 ];
 
 // Files that are evolved forms — harder to catch with a standard ball
@@ -828,6 +899,8 @@ let pokeRocketIdx = 0; // which team rocket member to blast next (0-2)
 let phase = 1;
 let roundInPhase = 0;
 let targetNum = 0;
+// Adaptive difficulty: shifts the number ceiling with the child's streaks
+let diffAdj = 0, rightStreak = 0, wrongStreak = 0;
 let score = 0;
 let isWin = false;
 let dragData = null;
@@ -1384,7 +1457,9 @@ let currentChallenge = null;
 // Progressive difficulty: the value ceiling grows round by round.
 // Phase 1 ramps 5 → 10, phase 2 ramps 12 → 20.
 function currentMax() {
-  return phase === 1 ? Math.min(10, 5 + roundInPhase) : Math.min(20, 12 + roundInPhase);
+  const base = phase === 1 ? Math.min(10, 5 + roundInPhase) : Math.min(20, 12 + roundInPhase);
+  const floor = phase === 1 ? 4 : 11, cap = phase === 1 ? 10 : 20;
+  return Math.max(floor, Math.min(cap, base + diffAdj));
 }
 
 function makeChallenge() {
@@ -1407,7 +1482,8 @@ function makeChallenge() {
     ch.slots = getNumberDigits(n).map(String);
     ch.pool = numPool();
     ch.itemCount = n;
-    ch.questionHTML = Array(n).fill(item.emoji).join(' ');
+    ch.item = item;
+    ch.questionHTML = Array(n).fill('<span class="ci">' + item.emoji + '</span>').join(' ');
     ch.hint = (item.f ? 'Quantas' : 'Quantos') + ' vês?';
     ch.speakText = (item.f ? 'Quantas ' : 'Quantos ') + item.name + ' vês?';
 
@@ -1421,9 +1497,10 @@ function makeChallenge() {
     ch.slots = getNumberDigits(sum).map(String);
     ch.pool = numPool();
     ch.itemCount = sum;
+    ch.a = a; ch.b = b; ch.item = item;
     ch.questionHTML =
-      '<span class="sum-group"><b>' + a + '</b>' + Array(a).fill(item.emoji).join('') + '</span>' +
-      ' + <span class="sum-group"><b>' + b + '</b>' + Array(b).fill(item.emoji).join('') + '</span>' +
+      '<span class="sum-group"><b>' + a + '</b>' + Array(a).fill('<span class="ci">' + item.emoji + '</span>').join('') + '</span>' +
+      ' + <span class="sum-group"><b>' + b + '</b>' + Array(b).fill('<span class="ci">' + item.emoji + '</span>').join('') + '</span>' +
       ' = <span class="seq-blank">?</span>';
     ch.hint = 'Faz a soma!';
     ch.speakText = 'Quanto é ' + NUM_NAMES[a] + ' mais ' + NUM_NAMES[b] + '?';
@@ -1444,6 +1521,7 @@ function makeChallenge() {
     }
     ch.slots = getNumberDigits(ans).map(String);
     ch.pool = numPool();
+    ch.seq = seq; ch.ans = ans;
     ch.questionHTML = seq.join(', ') + ', <span class="seq-blank">?</span>';
     ch.hint = 'Que número falta?';
     ch.speakText = 'Que número falta? ' + seq.map(x => NUM_NAMES[x]).join(', ') + '...';
@@ -1792,6 +1870,33 @@ function buildChallenge(ch) {
   });
 }
 
+// Wrong answers teach: glow the right tile and explain WHY (voice + visual counting)
+function teachWrong(slotEl) {
+  const ch = currentChallenge; if (!ch) return;
+  const expected = slotEl.dataset.expected;
+  const tile = [...document.querySelectorAll('.num-tile')].find(t => t.dataset.value === expected && t.dataset.used === 'false');
+  if (tile) { tile.classList.add('teach'); setTimeout(() => tile.classList.remove('teach'), 2800); }
+  const items = [...document.querySelectorAll('#challengeQ .ci')];
+  if ((ch.mode === 'contar' || ch.mode === 'somar') && items.length) {
+    const total = ch.itemCount;
+    const words = [];
+    for (let i = 1; i <= total; i++) words.push(NUM_NAMES[i]);
+    const intro = ch.mode === 'somar' ? 'Vamos contar todos juntos! ' : 'Vamos contar! ';
+    speak(intro + words.join(', ') + '! São ' + NUM_NAMES[total] + '!');
+    items.forEach((el, i) => {
+      setTimeout(() => el.classList.add('lit'), 250 + i * 430);
+      setTimeout(() => el.classList.remove('lit'), 250 + i * 430 + 400);
+    });
+  } else if (ch.mode === 'sequencia' && ch.seq) {
+    speak('Olha: ' + ch.seq.map(x => NUM_NAMES[x]).join(', ') + '... vem o ' + NUM_NAMES[ch.ans] + '!');
+  } else if (expected && isNaN(expected)) {
+    const nome = LETTER_NAMES[expected] || expected;
+    speak('Esta é a letra ' + nome + '! Toca na ' + nome + '!');
+  } else {
+    speak('Procura o número ' + NUM_NAMES[+expected] + '!');
+  }
+}
+
 function handleNumberDrop(value, slotEl, sourceEl) {
   if (isWin || roadPuzzleActive || !slotEl || slotEl.classList.contains('filled')) return;
   const expected = slotEl.dataset.expected;
@@ -1813,6 +1918,9 @@ function handleNumberDrop(value, slotEl, sourceEl) {
     score++;
     showFeedback('✅', 'ok');
     document.getElementById('scoreDisplay').textContent = score;
+    // adaptive: reward streaks with a higher ceiling
+    rightStreak++; wrongStreak = 0;
+    if (rightStreak >= 4) { diffAdj = Math.min(2, diffAdj + 1); rightStreak = 0; }
 
     if (slotsFilled === totalSlots) {
       if (captureMode) setTimeout(runCaptureThrow, 300);
@@ -1824,6 +1932,10 @@ function handleNumberDrop(value, slotEl, sourceEl) {
     setTimeout(() => slotEl.classList.remove('wrong'), 400);
     sfxWrong();
     showFeedback('❌', 'fail');
+    // adaptive: ease off after repeated misses, then teach
+    wrongStreak++; rightStreak = 0;
+    if (wrongStreak >= 2) { diffAdj = Math.max(-3, diffAdj - 1); wrongStreak = 0; }
+    teachWrong(slotEl);
   }
 }
 
@@ -2425,6 +2537,7 @@ function triggerPokemonAttack() {
     domImpact(target);
     arena.classList.add('shake');
     setTimeout(() => arena.classList.remove('shake'), 420);
+    if (Math.random() < 0.4) setTimeout(celebrate, 300);
     if (isEpic) {
       epicAttackFX(type, toX, toY);
       rumble([50, 40, 50, 40, 50, 40, 120]);
@@ -2452,7 +2565,59 @@ function triggerPokemonAttack() {
   setTimeout(pokeRocketIdx >= 3 ? gymDefeatedFlow : proceedNextRound, 1800);
 }
 
+// ---------- Celebration variety: 4 rotating win moments ----------
+function confettiFX() {
+  const pieces = [];
+  const colors = ['#ff5252','#ffd740','#69f0ae','#40c4ff','#e040fb','#ffab40'];
+  for (let i = 0; i < 60; i++) pieces.push({
+    x: Math.random(), y: -0.1 - Math.random() * 0.3, r: 4 + Math.random() * 5,
+    c: colors[i % 6], vy: 0.35 + Math.random() * 0.4,
+    vx: (Math.random() - 0.5) * 0.2, rot: Math.random() * 6.3, vr: (Math.random() - 0.5) * 8
+  });
+  runFx(function(ctx, W, H, t) {
+    pieces.forEach(pc => {
+      const x = (pc.x + pc.vx * t) * W, y = (pc.y + pc.vy * t) * H;
+      if (y > H + 20) return;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(pc.rot + pc.vr * t);
+      ctx.fillStyle = pc.c; ctx.fillRect(-pc.r / 2, -pc.r / 2, pc.r, pc.r * 0.6);
+      ctx.restore();
+    });
+  }, 1900);
+}
+
+function starBurstFX() {
+  runFx(function(ctx, W, H, t, p) {
+    const cx = W / 2, cy = H * 0.35;
+    for (let i = 0; i < 16; i++) {
+      const ang = (i / 16) * Math.PI * 2 + t * 0.6;
+      const d = p * W * 0.32;
+      const x = cx + Math.cos(ang) * d, y = cy + Math.sin(ang) * d * 0.7;
+      ctx.globalAlpha = 1 - p;
+      ctx.fillStyle = i % 2 ? '#ffd740' : '#fff9c4';
+      ctx.beginPath(); ctx.arc(x, y, 6 * (1 - p) + 2, 0, 6.3); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }, 900);
+}
+
+function celebrate() {
+  const kind = Math.floor(Math.random() * 4);
+  if (kind === 0) confettiFX();
+  else if (kind === 1) starBurstFX();
+  else if (kind === 2) {
+    const b = document.createElement('div');
+    b.className = 'celebrate-ball'; b.textContent = '🔴';
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 1500);
+  } else {
+    const img = document.getElementById('pokeImg');
+    if (img) { img.classList.add('celebrate'); setTimeout(() => img.classList.remove('celebrate'), 1700); }
+  }
+}
+
 function gymDefeatedFlow() {
+  storyGymWon();
+  setTimeout(celebrate, 700);
   if (currentEvo) runEvolution(function() { startWildEncounter(); });
   else startWildEncounter();
 }
@@ -2462,17 +2627,60 @@ function onWin() {
   clearInterval(hintTimer);
   masterBalls++;
   saveMasterBalls();
+  ballsRecovered = TOTAL_BALLS; updateBallsHud();
   document.getElementById('winOverlay').classList.add('active');
-  speak('Parabéns! Completaste todos os desafios! Ganhaste uma Master Ball!');
+  speak('Recuperámos todas as Pokébolas! A aldeia está a salvo! Parabéns, ganhaste uma Master Ball!');
 }
 
 function restartGame() {
   phase = 1; roundInPhase = 0; score = 0; pokeRocketIdx = 3; oppBag = [];
   gameStartedFlag = true;
+  ballsRecovered = 0; updateBallsHud();
   document.getElementById('winOverlay').classList.remove('active');
   startFight(() => {
     loadRound();
   });
+  setTimeout(() => {
+    showStory('🚨 A Equipa Rocket roubou as Pokébolas outra vez! Vamos recuperá-las!');
+    speak('A Equipa Rocket roubou as Pokébolas outra vez! Vamos recuperá-las!');
+  }, 5200);
+}
+
+// ---------- Story arc: Team Rocket stole the village's 6 Pokébolas ----------
+const TOTAL_BALLS = 6; // 20 rounds ÷ 3 rounds per gym = 6 full gyms per game
+let ballsRecovered = 0;
+
+function updateBallsHud() {
+  const hud = document.getElementById('ballsHud');
+  if (!hud) return;
+  hud.innerHTML = '';
+  for (let i = 0; i < TOTAL_BALLS; i++) {
+    const s = document.createElement('span');
+    s.className = 'pb' + (i < ballsRecovered ? ' got' : '');
+    hud.appendChild(s);
+  }
+}
+
+let storyToastTimer = null;
+function showStory(text) {
+  const t = document.getElementById('storyToast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(storyToastTimer);
+  storyToastTimer = setTimeout(() => t.classList.remove('show'), 4200);
+}
+
+function storyGymWon() {
+  ballsRecovered = Math.min(TOTAL_BALLS, ballsRecovered + 1);
+  updateBallsHud();
+  const pb = document.querySelectorAll('#ballsHud .pb')[ballsRecovered - 1];
+  if (pb) pb.classList.add('pop');
+  const falta = TOTAL_BALLS - ballsRecovered;
+  const line = falta > 0
+    ? 'Recuperaste uma Pokébola! ' + (falta === 1 ? 'Só falta uma!' : 'Faltam ' + falta + '!')
+    : 'Recuperámos todas as Pokébolas!';
+  showStory('🔴 ' + line);
+  speak(line);
 }
 
 function showFeedback(msg, type) {
@@ -2494,15 +2702,22 @@ function startGame() {
   initAudio();
   oppBag = [];
   gameStartedFlag = true;
+  ballsRecovered = 0; updateBallsHud();
   startFight(() => {
     phase = 1; roundInPhase = 0; score = 0;
     document.getElementById('winOverlay').classList.remove('active');
     loadRound();
   });
+  // Story kickoff (once the fight intro voice has had its say)
+  setTimeout(() => {
+    showStory('🚨 A Equipa Rocket roubou as 6 Pokébolas da aldeia! Ganha batalhas para as recuperar!');
+    speak('A Equipa Rocket roubou as Pokébolas da aldeia! Ajuda o teu Pokémon a recuperá-las todas!');
+  }, 5200);
 }
 
 // Set images on page load (hidden until start) — the player always begins with Pikachu
 setActivePoke('pikachu.png');
+updateBallsHud();
 currentOpp = OPPONENTS[0];
 buildOppRow();
 
