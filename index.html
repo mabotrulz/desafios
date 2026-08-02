@@ -1,0 +1,2146 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="0">
+<title>Joga com Neo — Desafios</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #2d1b4e;
+    font-family: 'Baloo 2', 'Comic Sans MS', 'Chalkboard SE', system-ui, sans-serif;
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; min-height: 100dvh;
+    overflow: hidden; touch-action: none; user-select: none;
+  }
+
+  .game {
+    width: 100vw; height: 100vh; height: 100dvh;
+    max-width: 800px;
+    background: linear-gradient(180deg, #6c5ce7 0%, #a55eea 45%, #fd79a8 100%);
+    display: flex; flex-direction: column;
+    position: relative; overflow: hidden;
+  }
+
+  .header {
+    text-align: center; padding: 6px 12px 2px;
+    flex-shrink: 0; z-index: 2; position: relative;
+  }
+  .header h1 {
+    color: #ffe259; font-size: clamp(13px, 3vw, 18px);
+    font-weight: 900; letter-spacing: 2px;
+    text-shadow: 0 2px 0 rgba(0,0,0,0.15);
+  }
+  .header .hint {
+    color: rgba(255,255,255,0.85); font-size: clamp(9px, 2vw, 12px);
+    min-height: 16px; font-weight: 600;
+  }
+
+  /* Arena - transparent bg */
+  .arena {
+    flex-shrink: 0;
+    height: clamp(220px, 48vw, 340px);
+    position: relative;
+    margin: 0 4px;
+    z-index: 2;
+  }
+  /* Lift the whole arena stacking context while the wild stage is up,
+     so the full-screen grass paints over the header, slots and number pool */
+  .arena.wild-active { z-index: 45; }
+
+  .arena-side {
+    position: absolute;
+    bottom: 0;
+    display: flex; flex-direction: column; align-items: center;
+    z-index: 3;
+  }
+  .arena-side.left { left: 5%; cursor: pointer; }
+  .arena-side.right { right: 5%; }
+
+  .arena-side .char-img {
+    object-fit: contain;
+    image-rendering: auto;
+    transition: all 0.3s;
+  }
+  .arena-side .poke-img {
+    width: clamp(140px, 32vw, 240px);
+    height: clamp(140px, 32vw, 240px);
+  }
+  .arena-side .rocket-img {
+    width: clamp(80px, 19vw, 120px);
+    height: clamp(80px, 19vw, 120px);
+  }
+  .arena-side .char-label {
+    font-size: clamp(8px, 1.6vw, 11px);
+    color: rgba(255,255,255,0.85);
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  .arena-side .team-rocket-col {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+  }
+  .arena-side .team-rocket-col .rocket-row {
+    display: flex; gap: 0px; align-items: flex-end; justify-content: flex-end;
+  }
+  .arena-side .team-rocket-col .rocket-row .rocket-img {
+    margin-right: -8px;
+  }
+  .arena-side .team-rocket-col .rocket-row .rocket-img:last-child {
+    margin-right: 0;
+  }
+
+  /* Attack animations per type */
+  .arena-side.left .poke-img.attack-electric {
+    animation: attackElectric 0.5s ease;
+  }
+  @keyframes attackElectric {
+    0% { transform: translateX(0) scale(1); filter: brightness(1); }
+    25% { transform: translateX(80px) scale(1.3); filter: brightness(2) hue-rotate(60deg); }
+    50% { transform: translateX(-10px) scale(0.8); filter: brightness(1.5); }
+    100% { transform: translateX(0) scale(1); filter: brightness(1); }
+  }
+
+  .arena-side.left .poke-img.attack-fire {
+    animation: attackFire 0.5s ease;
+  }
+  @keyframes attackFire {
+    0% { transform: translateX(0) scale(1); opacity: 1; }
+    30% { transform: translateX(70px) scale(1.4); opacity: 0.7; filter: saturate(3) hue-rotate(-30deg); }
+    60% { transform: translateX(-5px) scale(0.85); filter: saturate(1); }
+    100% { transform: translateX(0) scale(1); opacity: 1; }
+  }
+
+  .arena-side.left .poke-img.attack-water {
+    animation: attackWater 0.5s ease;
+  }
+  @keyframes attackWater {
+    0% { transform: translateX(0) translateY(0); }
+    30% { transform: translateX(60px) translateY(-10px) scale(1.2); }
+    60% { transform: translateX(-8px) translateY(5px) scale(0.9); }
+    100% { transform: translateX(0) translateY(0); }
+  }
+
+  .arena-side.left .poke-img.attack-psychic {
+    animation: attackPsychic 0.5s ease;
+  }
+  @keyframes attackPsychic {
+    0% { transform: translateX(0) scale(1) rotate(0); }
+    25% { transform: translateX(50px) scale(1.3) rotate(-15deg); filter: hue-rotate(180deg); }
+    50% { transform: translateX(-5px) scale(0.8) rotate(10deg); }
+    100% { transform: translateX(0) scale(1) rotate(0); filter: none; }
+  }
+
+  .arena-side.left .poke-img.attack-ghost {
+    animation: attackGhost 0.5s ease;
+  }
+  @keyframes attackGhost {
+    0% { transform: translateX(0) scale(1); opacity: 1; }
+    20% { opacity: 0.3; }
+    40% { transform: translateX(65px) scale(1.3); opacity: 0.8; filter: saturate(0); }
+    60% { opacity: 0.5; transform: translateX(-8px) scale(0.8); }
+    100% { transform: translateX(0) scale(1); opacity: 1; filter: none; }
+  }
+
+  .arena-side.left .poke-img.attack-fairy {
+    animation: attackFairy 0.5s ease;
+  }
+  @keyframes attackFairy {
+    0% { transform: translateX(0) scale(1) rotate(0); }
+    30% { transform: translateX(55px) scale(1.2) rotate(10deg); filter: hue-rotate(90deg) brightness(1.3); }
+    60% { transform: translateX(-5px) scale(0.9) rotate(-5deg); }
+    100% { transform: translateX(0) scale(1) rotate(0); filter: none; }
+  }
+
+  .arena-side.left .poke-img.attack-dragon {
+    animation: attackDragon 0.5s ease;
+  }
+  @keyframes attackDragon {
+    0% { transform: translateX(0) scale(1); }
+    20% { transform: translateX(30px) scale(1.5); filter: hue-rotate(45deg) saturate(2); }
+    50% { transform: translateX(85px) scale(1.1); filter: hue-rotate(90deg); }
+    70% { transform: translateX(-12px) scale(0.8); }
+    100% { transform: translateX(0) scale(1); filter: none; }
+  }
+
+  .arena-side.left .poke-img.attack-normal {
+    animation: attackNormal 0.5s ease;
+  }
+  @keyframes attackNormal {
+    0% { transform: translateX(0); }
+    30% { transform: translateX(75px) scale(1.25); }
+    60% { transform: translateX(-10px) scale(0.85); }
+    100% { transform: translateX(0); }
+  }
+
+  .arena-side.right .rocket-img.hit {
+    animation: hitShake 0.4s ease;
+  }
+  @keyframes hitShake {
+    0%,100% { transform: translateX(0) rotate(0); }
+    20% { transform: translateX(12px) rotate(-5deg); }
+    40% { transform: translateX(-8px) rotate(5deg); }
+    60% { transform: translateX(6px) rotate(-3deg); }
+  }
+
+  .arena-side.right .rocket-img.blast {
+    animation: blastOff 1.2s ease forwards;
+  }
+  @keyframes blastOff {
+    0% { transform: translateX(0) translateY(0) scale(1); opacity: 1; }
+    20% { transform: translateX(0) translateY(0) scale(1.1); opacity: 1; }
+    100% { transform: translateX(80px) translateY(-300px) scale(0.2) rotate(30deg); opacity: 0; }
+  }
+
+  /* Attack FX: everything is drawn procedurally on canvas — no emoji sprites */
+  .fx-canvas { position: fixed; inset: 0; z-index: 125; pointer-events: none; }
+
+  .arena.shake { animation: arenaShake 0.4s ease; }
+  @keyframes arenaShake {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-6px, 3px); }
+    40% { transform: translate(5px, -4px); }
+    60% { transform: translate(-4px, -2px); }
+    80% { transform: translate(3px, 2px); }
+  }
+
+  /* Master Ball button + win reward */
+  .ball-btn.master { position: relative; }
+  .mb-count {
+    position: absolute; top: 0; right: 0;
+    background: #a55eea; color: #fff;
+    border: 2px solid #fff; border-radius: 999px;
+    font-size: clamp(12px, 3vw, 16px); font-weight: 800;
+    min-width: 1.6em; padding: 1px 5px;
+  }
+  .win-reward { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 14px 0 4px; }
+  .win-reward img { width: clamp(54px, 12vw, 80px); height: clamp(54px, 12vw, 80px); animation: ballPulse 1.4s ease-in-out infinite; }
+  .win-reward span { color: #fff; font-weight: 800; font-size: clamp(18px, 4.5vw, 26px); text-shadow: 0 2px 0 rgba(0,0,0,0.2); }
+
+  /* Slots */
+  .slots-area {
+    flex: 2;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 2px 8px;
+    min-height: 0; z-index: 2; position: relative;
+  }
+  .slots-row {
+    display: flex; justify-content: center;
+    gap: 8px; padding: 8px;
+  }
+  .slot {
+    width: clamp(44px, 10vw, 68px);
+    height: clamp(52px, 12vw, 76px);
+    border: 3px dashed rgba(255,255,255,0.6);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(28px, 7vw, 48px);
+    font-weight: 800; color: #ffe259;
+    transition: all 0.25s;
+    background: rgba(255,255,255,0.12);
+  }
+  .slot.filled {
+    border-style: solid; border-color: #ffe259;
+    background: rgba(255,226,89,0.25);
+    animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .slot.wrong {
+    border-color: #e74c3c;
+    background: rgba(231,76,60,0.2);
+    animation: shake 0.35s ease;
+  }
+  .slot.drag-over {
+    border-color: #55efc4;
+    background: rgba(85,239,196,0.2);
+    transform: scale(1.08);
+  }
+
+  @keyframes popIn { 0%{transform:scale(0.7)}100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)} }
+
+  .num-pool {
+    display: flex; flex-wrap: wrap;
+    justify-content: center; gap: 5px;
+    padding: 6px 10px;
+    flex-shrink: 0; min-height: 44px; max-height: 150px;
+    overflow-y: auto; z-index: 2; position: relative;
+  }
+  .num-tile {
+    width: clamp(40px, 9vw, 58px);
+    height: clamp(44px, 10vw, 62px);
+    background: #fff;
+    color: #6c5ce7;
+    font-size: clamp(22px, 5vw, 36px);
+    font-weight: 800; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: grab; touch-action: none;
+    transition: transform 0.15s, opacity 0.3s;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.15);
+    border-bottom: 3px solid rgba(0,0,0,0.12);
+  }
+  .num-tile:active { cursor: grabbing; }
+  .num-tile:hover { transform: translateY(-2px); }
+  .num-tile.dragging { opacity: 0.35; transform: scale(0.9); }
+  .num-tile.placed { opacity: 0; pointer-events: none; transform: scale(0.4); }
+
+  .feedback {
+    text-align: center; padding: 2px 12px;
+    min-height: 24px; flex-shrink: 0; z-index: 2; position: relative;
+  }
+  .feedback .msg { font-size: clamp(13px, 2.5vw, 18px); font-weight: 600; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+  .feedback .msg.ok { color: #a9ffd9; }
+  .feedback .msg.fail { color: #ffe0e0; }
+
+  .stats-row {
+    display: flex; justify-content: center; gap: 20px;
+    padding: 2px 12px;
+    flex-shrink: 0; z-index: 2; position: relative;
+  }
+  .stats-row .stat { text-align: center; }
+  .stats-row .stat .val { font-size: clamp(16px, 3.5vw, 24px); font-weight: 700; color: #fff; }
+  .stats-row .stat .label { font-size: clamp(8px, 1.6vw, 11px); color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px; }
+
+  .win-overlay {
+    position: absolute; inset: 0;
+    background: rgba(15,52,96,0.93);
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    z-index: 100; opacity: 0; pointer-events: none;
+    transition: opacity 0.5s; padding: 30px; text-align: center;
+  }
+  .win-overlay.active { opacity: 1; pointer-events: all; }
+  .win-overlay h2 { font-size: clamp(28px,8vw,48px); color: #4ecca3; margin: 4px 0; }
+  .win-overlay .sub { font-size: clamp(14px,3vw,18px); color: #aaa; margin-bottom: 8px; }
+  .win-overlay button {
+    padding: 12px 36px; font-size: clamp(14px,3vw,18px); font-weight: 700;
+    background: #4ecca3; color: #1a1a2e; border: none; border-radius: 12px; cursor: pointer; letter-spacing: 1px; transition: transform 0.2s; margin-top: 8px;
+  }
+  .win-overlay button:hover { transform: scale(1.05); }
+
+  /* Character intro animation */
+  .intro-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(108,92,231,0.96), rgba(165,94,234,0.96), rgba(253,121,168,0.96));
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    z-index: 160;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .intro-overlay.active { opacity: 1; pointer-events: all; }
+  .intro-overlay .intro-char {
+    width: clamp(160px, 40vw, 300px);
+    height: clamp(160px, 40vw, 300px);
+    object-fit: contain;
+    transition: all 0.8s cubic-bezier(0.34, 1.2, 0.64, 1);
+    animation: introEntrance 0.5s ease forwards;
+  }
+  @keyframes introEntrance {
+    0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+    60% { transform: scale(1.1) rotate(3deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  .intro-overlay .intro-name {
+    font-size: clamp(28px, 8vw, 56px);
+    font-weight: 800;
+    color: #ffe259;
+    margin-top: 8px;
+    text-shadow: 0 3px 0 rgba(0,0,0,0.18);
+    animation: introNameIn 0.4s ease 0.3s forwards;
+    opacity: 0;
+  }
+  @keyframes introNameIn {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+  .intro-overlay .intro-vs {
+    font-size: clamp(20px, 5vw, 36px);
+    color: #ff7675;
+    font-weight: 700;
+    margin: 4px 0;
+    animation: introNameIn 0.3s ease 0.1s forwards;
+    opacity: 0;
+  }
+
+  /* Evolution overlay */
+  .evo-overlay {
+    position: absolute; inset: 0; z-index: 170;
+    background: linear-gradient(180deg, #6c5ce7 0%, #a55eea 45%, #fd79a8 100%);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .evo-overlay.active { opacity: 1; pointer-events: all; }
+  .evo-container { position: relative; width: clamp(160px, 42vw, 300px); height: clamp(160px, 42vw, 300px); display: flex; align-items: center; justify-content: center; }
+  .evo-container img { position: absolute; width: 100%; height: 100%; object-fit: contain; transition: opacity 0.5s; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3)); }
+  .evo-container img.base { opacity: 1; z-index: 2; }
+  .evo-container img.evolved { opacity: 0; z-index: 1; }
+  .evo-overlay.evolving .evo-container img.base { opacity: 0; }
+  .evo-overlay.evolving .evo-container img.evolved { opacity: 1; }
+  .evo-flash { position: absolute; inset: 0; background: #fff; border-radius: 50%; pointer-events: none; opacity: 0; z-index: 10; }
+  @keyframes evoPulse { 0%,100%{opacity:0} 15%{opacity:0.8} 30%{opacity:0} 45%{opacity:0.5} 60%{opacity:0} 75%{opacity:0.3} 90%{opacity:0} }
+  .evo-overlay.evolving .evo-flash { animation: evoPulse 1.8s ease 1; }
+  .evo-overlay .evo-name { font-size: clamp(20px, 5.5vw, 36px); font-weight: 800; color: #ffe259; margin-top: 14px; text-shadow: 0 3px 0 rgba(0,0,0,0.18); text-align: center; padding: 0 20px; line-height: 1.3; z-index: 5; }
+
+  /* Start screen */
+  .start-overlay {
+    position: absolute; inset: 0;
+    background: rgba(15,52,96,0.95);
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    z-index: 150;
+    padding: 30px; text-align: center;
+    transition: opacity 0.5s;
+  }
+  .start-overlay.hidden { opacity: 0; pointer-events: none; }
+  .start-overlay .logo { font-size: clamp(50px, 14vw, 90px); margin-bottom: 8px; }
+  .start-overlay h2 { font-size: clamp(24px, 7vw, 40px); color: #f1c40f; margin-bottom: 4px; }
+  .start-overlay p { font-size: clamp(13px, 3vw, 17px); color: #aaa; margin-bottom: 24px; }
+  .start-overlay .start-btn {
+    padding: 16px 48px; font-size: clamp(18px, 4vw, 24px); font-weight: 700;
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+    color: #1a1a2e; border: none; border-radius: 16px;
+    cursor: pointer; letter-spacing: 2px;
+    transition: transform 0.2s; box-shadow: 0 6px 25px rgba(241,196,15,0.3);
+  }
+  .start-overlay .start-btn:hover { transform: scale(1.08); }
+
+  .drag-ghost {
+    position: fixed; pointer-events: none; z-index: 200;
+    width: clamp(40px,9vw,58px); height: clamp(44px,10vw,62px);
+    background: #fff; color: #6c5ce7;
+    font-size: clamp(22px,5vw,36px); font-weight: 800; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3); transform: translate(-50%,-50%) scale(1.15);
+    border-bottom: 3px solid rgba(0,0,0,0.12);
+  }
+
+  /* Wild encounter (full-screen grass stage; shrinks into the arena for the capture challenge) */
+  .wild-overlay {
+    position: fixed; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    z-index: 40; pointer-events: none;
+  }
+  .wild-overlay.active {
+    display: flex;
+    background:
+      radial-gradient(ellipse 150px 26px at 50% 90%, rgba(0,60,0,0.22), transparent),
+      linear-gradient(180deg, #aee3ff 0%, #cdeffd 30%, #8fd46f 31%, #66b84a 62%, #4a9c36 100%);
+    box-shadow: inset 0 0 40px rgba(0,80,0,0.28);
+  }
+  /* Capture challenge: grass stays full-screen, wild pokémon moves up,
+     slots + number pool lift above the grass so they stay usable */
+  .wild-overlay.catch-mode { align-items: flex-start; padding-top: 9vh; }
+  .wild-overlay:not(.catch-mode) .wild-img { width: clamp(150px, 36vw, 240px); height: clamp(150px, 36vw, 240px); }
+  body.catching .slots-area, body.catching .num-pool { z-index: 46; }
+  .wild-overlay.active::after {
+    content: '🌼  🌿    🌷    🌿  🌼';
+    position: absolute; bottom: 4px; left: 0; right: 0;
+    text-align: center; font-size: clamp(12px, 3vw, 18px);
+    letter-spacing: 8px; opacity: 0.9; pointer-events: none;
+  }
+  .wild-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: all; }
+  .wild-img { width: clamp(96px, 23vw, 150px); height: clamp(96px, 23vw, 150px); object-fit: contain;
+    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.35)); animation: wildIn 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes wildIn { 0%{transform:scale(0.2) translateY(40px);opacity:0} 100%{transform:scale(1) translateY(0);opacity:1} }
+  .wild-label { color:#fff; font-weight:800; font-size:clamp(14px,3.2vw,19px); text-shadow:0 2px 0 rgba(0,0,0,0.45); }
+  .wild-hint { color:#ffe259; font-weight:800; font-size:clamp(11px,2.4vw,14px); text-shadow:0 2px 0 rgba(0,0,0,0.45); }
+  .wild-controls { display: flex; align-items: center; gap: 14px; }
+  .ball-btn { background:none; border:none; cursor:pointer; padding:6px; animation:ballPulse 1.4s ease-in-out infinite; }
+  .ball-btn img { width:clamp(62px,14vw,88px); height:clamp(62px,14vw,88px); }
+  @keyframes ballPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.18)} }
+  .wild-skip { background:rgba(0,0,0,0.45); color:#fff; border:2px solid rgba(255,255,255,0.55); border-radius:999px;
+    padding:8px 16px; font-family:inherit; font-weight:800; font-size:clamp(11px,2.4vw,14px); cursor:pointer; }
+
+  /* thrown ball + catch FX (fixed: flies across the screen) */
+  .thrown-ball { position: fixed; z-index: 120; width: 64px; height: 64px; pointer-events: none;
+    transition: left 0.5s cubic-bezier(0.3,1.3,0.6,1), top 0.5s cubic-bezier(0.3,1.3,0.6,1); }
+  .thrown-ball.wiggle { animation: ballWiggle 0.45s ease-in-out 3; }
+  @keyframes ballWiggle { 0%,100%{transform:rotate(0)} 25%{transform:rotate(-18deg)} 75%{transform:rotate(18deg)} }
+  .catch-star { position: fixed; z-index: 121; font-size: 26px; pointer-events: none; animation: starPop 0.8s ease forwards; }
+  @keyframes starPop { 0%{transform:scale(0.2);opacity:1} 100%{transform:scale(1.7) translateY(-46px);opacity:0} }
+  .wild-img.into-ball { transition: all 0.4s; transform: scale(0); opacity: 0; }
+  .wild-img.flee { transition: all 0.5s; transform: translateX(140%) scale(0.6); opacity: 0; }
+
+  /* Pokédex */
+  .dex-overlay { position: absolute; inset: 0; z-index: 180; display: none; flex-direction: column;
+    background: linear-gradient(180deg,#6c5ce7 0%,#a55eea 45%,#fd79a8 100%); }
+  .dex-overlay.active { display: flex; }
+  .dex-head { display:flex; align-items:center; justify-content:space-between; padding:12px 14px 6px; }
+  .dex-title { color:#fff; font-weight:800; font-size:clamp(18px,5vw,26px); text-shadow:0 2px 0 rgba(0,0,0,0.2); }
+  .dex-count { color:#ffe259; font-weight:800; font-size:clamp(13px,3.4vw,18px); margin-left:8px; }
+  .dex-close { width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,0.92);
+    font-size:20px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.3); }
+  .dex-grid { flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(74px,1fr));
+    gap:8px; padding:10px 14px 20px; align-content:start; }
+  .dex-cell { background:rgba(255,255,255,0.14); border-radius:14px; padding:4px; display:flex;
+    flex-direction:column; align-items:center; position:relative; }
+  .dex-cell img { width:100%; aspect-ratio:1; object-fit:contain; }
+  .dex-cell .dex-num { color:rgba(255,255,255,0.75); font-size:10px; font-weight:700; }
+  .dex-cell.uncaught img { filter:brightness(0); opacity:0.45; }
+  .dex-cell.caught { background:rgba(255,226,89,0.28); border:2px solid #ffe259; cursor:pointer; }
+  .dex-cell .dex-x { position:absolute; top:2px; right:4px; background:#ffe259; color:#5b3a00;
+    border-radius:999px; font-size:10px; font-weight:800; padding:1px 6px; }
+  .dex-detail { position:absolute; inset:0; z-index:190; display:none; align-items:center; justify-content:center;
+    background:rgba(15,10,40,0.72); padding:20px; }
+  .dex-detail.active { display:flex; }
+  .dex-card { background:linear-gradient(180deg,#ffffff,#f3edff); border-radius:24px; padding:18px 22px; width:min(92%,340px);
+    display:flex; flex-direction:column; align-items:center; box-shadow:0 12px 40px rgba(0,0,0,0.4); max-height:92%; overflow-y:auto; }
+  .dex-card img { width:clamp(120px,32vw,160px); height:clamp(120px,32vw,160px); object-fit:contain; }
+  .dex-card .dc-name { font-size:24px; font-weight:800; color:#4a3a8c; }
+  .dex-card .dc-num { font-size:13px; font-weight:700; color:#9b8cc4; }
+  .dc-types { display:flex; gap:6px; margin:6px 0 10px; }
+  .dc-type { background:#6c5ce7; color:#fff; border-radius:999px; padding:3px 12px; font-size:12px; font-weight:700; }
+  .dc-stat { width:100%; display:flex; align-items:center; gap:8px; margin:3px 0; }
+  .dc-stat .dc-label { width:74px; font-size:12px; font-weight:700; color:#4a3a8c; text-align:right; }
+  .dc-stat .dc-barbg { flex:1; height:12px; background:#e4ddf5; border-radius:999px; overflow:hidden; }
+  .dc-stat .dc-bar { height:100%; background:linear-gradient(90deg,#55efc4,#00b894); border-radius:999px; }
+  .dc-stat .dc-val { width:30px; font-size:12px; font-weight:800; color:#4a3a8c; }
+  .dc-close { margin-top:12px; border:none; border-radius:999px; padding:10px 30px; font-family:inherit;
+    font-weight:800; font-size:16px; color:#5b3a00; background:linear-gradient(180deg,#ffe259,#ffa751);
+    box-shadow:0 4px 0 #d9820f; cursor:pointer; }
+  .dc-swap { margin-top:12px; margin-right:8px; border:none; border-radius:999px; padding:10px 22px;
+    font-family:inherit; font-weight:800; font-size:16px; color:#fff;
+    background:linear-gradient(180deg,#55efc4,#00b894); box-shadow:0 4px 0 #018a6b; cursor:pointer; }
+
+  /* In-game pokédex button (header) */
+  .dex-hud-btn {
+    position: absolute; top: 4px; right: 6px; z-index: 6;
+    width: clamp(38px, 9vw, 48px); height: clamp(38px, 9vw, 48px);
+    border-radius: 50%; border: 3px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.2); font-size: clamp(17px, 4.4vw, 22px);
+    cursor: pointer; line-height: 1;
+  }
+
+  @media (max-width: 400px) {
+    .slot { width: clamp(36px,12vw,48px); height: clamp(42px,14vw,54px); font-size: 22px; }
+    .num-tile { width: clamp(34px,11vw,44px); height: clamp(38px,12vw,48px); font-size: 18px; }
+    .arena-side .poke-img { width: clamp(100px,24vw,140px); height: clamp(100px,24vw,140px); }
+    .arena-side .rocket-img { width: clamp(70px,18vw,110px); height: clamp(70px,18vw,110px); }
+  }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+/* ===== Shared kid menu style ===== */
+.start-overlay,.win-overlay,.overlay,.setup-screen{background:linear-gradient(180deg,#6c5ce7 0%,#a55eea 45%,#fd79a8 100%)!important;font-family:'Baloo 2','Comic Sans MS','Chalkboard SE',system-ui,sans-serif!important}
+.start-overlay h1,.start-overlay h2,.win-overlay h1,.win-overlay h2,.overlay h2,.setup-screen h1,.setup-screen h2{color:#fff!important;font-weight:800!important;font-family:'Baloo 2','Comic Sans MS','Chalkboard SE',system-ui,sans-serif!important;text-shadow:0 3px 0 rgba(0,0,0,0.18)!important;letter-spacing:1px!important}
+.start-overlay p,.win-overlay .sub,.win-overlay .stats,.win-overlay .phrase-read,.overlay .sub,.overlay .final-label,.overlay .final-score,.setup-screen p{color:rgba(255,255,255,0.92)!important;font-weight:600!important;text-shadow:0 2px 0 rgba(0,0,0,0.12)!important}
+.start-overlay .logo{animation:menuBob 2.2s ease-in-out infinite}
+.start-overlay img,.win-overlay .reward-img,.win-overlay .win-chars img{filter:drop-shadow(0 6px 10px rgba(0,0,0,0.3))}
+@keyframes menuBob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-12px) rotate(3deg)}}
+.start-btn,.start-overlay button,.win-overlay button,.overlay button,.setup-screen button{border-radius:999px!important;font-family:'Baloo 2','Comic Sans MS','Chalkboard SE',system-ui,sans-serif!important;font-weight:800!important;font-size:clamp(20px,5vw,28px)!important;padding:16px 46px!important;color:#5b3a00!important;background:linear-gradient(180deg,#ffe259,#ffa751)!important;border:none!important;box-shadow:0 7px 0 #d9820f,0 12px 24px rgba(0,0,0,0.25)!important;letter-spacing:1px!important;cursor:pointer!important;text-transform:none!important}
+.start-btn:active,.start-overlay button:active,.win-overlay button:active,.overlay button:active,.setup-screen button:active{transform:translateY(4px)!important;box-shadow:0 2px 0 #d9820f!important}
+.start-overlay .back-btn,.win-overlay .back-btn{background:rgba(255,255,255,0.22)!important;color:#fff!important;box-shadow:0 4px 0 rgba(0,0,0,0.2)!important;font-size:clamp(14px,3.5vw,18px)!important;padding:12px 28px!important}
+.start-overlay .setting-row span{color:#fff!important;font-weight:700!important;text-shadow:0 2px 0 rgba(0,0,0,0.12)!important}
+.start-overlay .size-btn{border-radius:14px!important;border:3px solid rgba(255,255,255,0.4)!important;background:rgba(255,255,255,0.16)!important;color:#fff!important;font-weight:800!important;font-family:inherit!important}
+.start-overlay .size-btn.active{border-color:#ffe259!important;background:rgba(255,226,89,0.35)!important;color:#5b3a00!important}
+.start-overlay .toggle{border:3px solid rgba(255,255,255,0.4)!important;background:rgba(255,255,255,0.25)!important}
+.start-overlay .toggle.active{background:#55efc4!important;border-color:#2fd4a7!important}
+
+/* Question visual for contar / somar / sequência (hidden for números & letras) */
+.challenge-q{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 8px;
+  padding:2px 14px;font-size:clamp(26px,6.5vw,46px);font-weight:800;color:#fff;line-height:1.25;
+  text-shadow:0 2px 8px rgba(0,0,0,0.45);max-width:640px;margin:0 auto}
+.challenge-q .seq-blank{color:#ffe259;text-shadow:0 0 12px rgba(255,226,89,0.7)}
+</style>
+</head>
+<body>
+
+<div class="game" id="game">
+  <div class="header">
+    <h1>⚡ Desafios ⚡</h1>
+    <div class="hint" id="phraseHint">Qual é o desafio?</div>
+    <button class="dex-hud-btn" id="dexHudBtn" title="Pokédex">📖</button>
+  </div>
+
+  <!-- Arena - transparent -->
+  <div class="arena" id="arena">
+    <div class="arena-side left" id="pokeSide">
+      <img class="char-img poke-img" id="pokeImg" src="" alt="Pokémon">
+      <div class="char-label" id="pokeName">Pikachu</div>
+    </div>
+    <div class="arena-side right" id="rocketSide">
+      <div class="team-rocket-col">
+        <div class="rocket-row" id="rocketRow"></div>
+        <div class="char-label" id="oppName">Team Rocket</div>
+      </div>
+    </div>
+    <!-- Wild encounter overlay (arena only) -->
+    <div class="wild-overlay" id="wildOverlay">
+      <div class="wild-wrap">
+        <img class="wild-img" id="wildImg" src="" alt="">
+        <div class="wild-label" id="wildLabel"></div>
+        <div class="wild-controls">
+          <button class="ball-btn" id="ballBtn"><img src="assets/pokeball.png" alt="Poké Ball"></button>
+          <button class="ball-btn master" id="masterBallBtn" style="display:none"><img src="assets/masterball.png" alt="Master Ball"><span class="mb-count" id="mbCount"></span></button>
+          <button class="wild-skip" id="wildSkip">Deixar ir →</button>
+        </div>
+        <div class="wild-hint" id="wildHint">Toca na Poké Ball!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slots -->
+  <div class="slots-area">
+    <div class="challenge-q" id="challengeQ" style="display:none"></div>
+    <div class="slots-row" id="slotsContainer"></div>
+  </div>
+
+  <div class="num-pool" id="numPool"></div>
+
+  <div class="feedback"><div class="msg" id="feedbackMsg"></div></div>
+
+  <div class="stats-row">
+    <div class="stat"><div class="val" id="scoreDisplay">0</div><div class="label">⭐</div></div>
+    <div class="stat"><div class="val" id="phaseDisplay">0-9</div><div class="label">Fase</div></div>
+    <div class="stat"><div class="val" id="roundDisplay">0/10</div><div class="label">Ronda</div></div>
+  </div>
+
+  <div class="win-overlay" id="winOverlay">
+    <h2>🏆 Parabéns!</h2>
+    <div class="sub">Completaste todos os desafios!</div>
+    <div class="win-reward" id="winReward"><img src="assets/masterball.png" alt="Master Ball"><span>Ganhaste uma Master Ball!</span></div>
+    <button onclick="restartGame()">Jogar outra vez →</button>
+    <button onclick="openDex()" style="margin-top:10px">📖 POKÉDEX</button>
+  </div>
+
+  <!-- Pokédex overlay -->
+  <div class="dex-overlay" id="dexOverlay">
+    <div class="dex-head">
+      <div><span class="dex-title">Pokédex</span><span class="dex-count" id="dexCount"></span></div>
+      <button class="dex-close" id="dexClose">✕</button>
+    </div>
+    <div class="dex-grid" id="dexGrid"></div>
+  </div>
+  <div class="dex-detail" id="dexDetail">
+    <div class="dex-card" id="dexCard"></div>
+  </div>
+
+  <!-- Intro overlay -->
+  <div class="intro-overlay" id="introOverlay">
+    <img class="intro-char" id="introImage" src="" alt="">
+    <div class="intro-name" id="introName"></div>
+  </div>
+
+  <!-- Evolution overlay -->
+  <div class="evo-overlay" id="evoOverlay">
+    <div class="evo-container">
+      <img class="evolved" id="evoEvolved" src="" alt="">
+      <img class="base" id="evoBase" src="" alt="">
+      <div class="evo-flash"></div>
+    </div>
+    <div class="evo-name" id="evoName"></div>
+  </div>
+
+  <!-- Start overlay -->
+  <div class="start-overlay" id="startOverlay">
+    <img src="assets/icon.png" style="width:clamp(60px,16vw,120px);height:clamp(60px,16vw,120px);border-radius:16px">
+    <h2>Desafios</h2>
+    <p>Ajuda o Pokémon a vencer os Líderes de Ginásio!</p>
+    <button class="start-btn" onclick="startGame()">▶ COMEÇAR</button>
+    <button class="start-btn" onclick="openDex()" style="margin-top:12px">📖 POKÉDEX</button>
+  </div>
+</div>
+
+<div class="drag-ghost" id="dragGhost" style="display:none"></div>
+
+<script src="pokedex.js"></script>
+<script>
+
+
+const TYPE_FX = {
+  electric: { cls:'attack-electric', core:'#ffffff', mid:'#ffee58', edge:'#8f7bff' },
+  fire:     { cls:'attack-fire',     core:'#fff6c8', mid:'#ffb03a', edge:'#ff4d00' },
+  water:    { cls:'attack-water',    core:'#e3f4ff', mid:'#4fc3f7', edge:'#1565c0' },
+  psychic:  { cls:'attack-psychic',  core:'#f3d1ff', mid:'#c26bff', edge:'#7b1fa2' },
+  ghost:    { cls:'attack-ghost',    core:'#e1bee7', mid:'#8e24aa', edge:'#4a148c' },
+  fairy:    { cls:'attack-fairy',    core:'#ffe3f4', mid:'#ff8fd6', edge:'#e91e63' },
+  dragon:   { cls:'attack-dragon',   core:'#d7fff2', mid:'#34d399', edge:'#0f766e' },
+  normal:   { cls:'attack-normal',   core:'#fff8e1', mid:'#ffd54f', edge:'#ff8f00' },
+  grass:    { cls:'attack-fairy',    core:'#e8ffd9', mid:'#7ed957', edge:'#2e7d32' },
+  poison:   { cls:'attack-ghost',    core:'#f3d1ff', mid:'#ab47bc', edge:'#4a148c' },
+  flying:   { cls:'attack-water',    core:'#ffffff', mid:'#b0bec5', edge:'#607d8b' },
+  bug:      { cls:'attack-normal',   core:'#f1ffb0', mid:'#aeea00', edge:'#558b2f' },
+  rock:     { cls:'attack-dragon',   core:'#e8e0d5', mid:'#a1887f', edge:'#5d4037' },
+  ground:   { cls:'attack-normal',   core:'#f0e2c8', mid:'#c9a06a', edge:'#795548' },
+  steel:    { cls:'attack-dragon',   core:'#f5f7fa', mid:'#b0bec5', edge:'#546e7a' },
+  ice:      { cls:'attack-psychic',  core:'#ffffff', mid:'#b3e5fc', edge:'#0288d1' },
+  fighting: { cls:'attack-normal',   core:'#ffe7d1', mid:'#ff8a50', edge:'#d84315' },
+  dark:     { cls:'attack-ghost',    core:'#cbb8ff', mid:'#5e35b1', edge:'#120024' },
+};
+
+// Left-side pokémon: always start at BASE form, evolve after each fight
+const EVOLUTIONS = [
+  {name:'Bulbasaur',file:'bulbasaur.png',evoName:'Ivysaur',evoFile:'ivysaur.png'},
+  {name:'Charmander',file:'charmander.png',evoName:'Charmeleon',evoFile:'charmeleon.png'},
+  {name:'Squirtle',file:'squirtle.png',evoName:'Wartortle',evoFile:'wartortle.png'},
+  {name:'Pikachu',file:'pikachu.png',evoName:'Raichu',evoFile:'raichu.png'},
+  {name:'Caterpie',file:'caterpie.png',evoName:'Metapod',evoFile:'metapod.png'},
+  {name:'Weedle',file:'weedle.png',evoName:'Kakuna',evoFile:'kakuna.png'},
+  {name:'Pidgey',file:'pidgey.png',evoName:'Pidgeotto',evoFile:'pidgeotto.png'},
+  {name:'Rattata',file:'rattata.png',evoName:'Raticate',evoFile:'raticate.png'},
+  {name:'Spearow',file:'spearow.png',evoName:'Fearow',evoFile:'fearow.png'},
+  {name:'Ekans',file:'ekans.png',evoName:'Arbok',evoFile:'arbok.png'},
+  {name:'Sandshrew',file:'sandshrew.png',evoName:'Sandslash',evoFile:'sandslash.png'},
+  {name:'Clefairy',file:'clefairy.png',evoName:'Clefable',evoFile:'clefable.png'},
+  {name:'Vulpix',file:'vulpix.png',evoName:'Ninetales',evoFile:'ninetales.png'},
+  {name:'Jigglypuff',file:'jigglypuff.png',evoName:'Wigglytuff',evoFile:'wigglytuff.png'},
+  {name:'Zubat',file:'zubat.png',evoName:'Golbat',evoFile:'golbat.png'},
+  {name:'Oddish',file:'oddish.png',evoName:'Gloom',evoFile:'gloom.png'},
+  {name:'Paras',file:'paras.png',evoName:'Parasect',evoFile:'parasect.png'},
+  {name:'Venonat',file:'venonat.png',evoName:'Venomoth',evoFile:'venomoth.png'},
+  {name:'Diglett',file:'diglett.png',evoName:'Dugtrio',evoFile:'dugtrio.png'},
+  {name:'Meowth',file:'meowth.png',evoName:'Persian',evoFile:'persian.png'},
+  {name:'Psyduck',file:'psyduck.png',evoName:'Golduck',evoFile:'golduck.png'},
+  {name:'Mankey',file:'mankey.png',evoName:'Primeape',evoFile:'primeape.png'},
+  {name:'Growlithe',file:'growlithe.png',evoName:'Arcanine',evoFile:'arcanine.png'},
+  {name:'Poliwag',file:'poliwag.png',evoName:'Poliwhirl',evoFile:'poliwhirl.png'},
+  {name:'Abra',file:'abra.png',evoName:'Kadabra',evoFile:'kadabra.png'},
+  {name:'Machop',file:'machop.png',evoName:'Machoke',evoFile:'machoke.png'},
+  {name:'Bellsprout',file:'bellsprout.png',evoName:'Weepinbell',evoFile:'weepinbell.png'},
+  {name:'Tentacool',file:'tentacool.png',evoName:'Tentacruel',evoFile:'tentacruel.png'},
+  {name:'Geodude',file:'geodude.png',evoName:'Graveler',evoFile:'graveler.png'},
+  {name:'Ponyta',file:'ponyta.png',evoName:'Rapidash',evoFile:'rapidash.png'},
+  {name:'Slowpoke',file:'slowpoke.png',evoName:'Slowbro',evoFile:'slowbro.png'},
+  {name:'Magnemite',file:'magnemite.png',evoName:'Magneton',evoFile:'magneton.png'},
+  {name:'Doduo',file:'doduo.png',evoName:'Dodrio',evoFile:'dodrio.png'},
+  {name:'Seel',file:'seel.png',evoName:'Dewgong',evoFile:'dewgong.png'},
+  {name:'Grimer',file:'grimer.png',evoName:'Muk',evoFile:'muk.png'},
+  {name:'Shellder',file:'shellder.png',evoName:'Cloyster',evoFile:'cloyster.png'},
+  {name:'Gastly',file:'gastly.png',evoName:'Haunter',evoFile:'haunter.png'},
+  {name:'Drowzee',file:'drowzee.png',evoName:'Hypno',evoFile:'hypno.png'},
+  {name:'Krabby',file:'krabby.png',evoName:'Kingler',evoFile:'kingler.png'},
+  {name:'Voltorb',file:'voltorb.png',evoName:'Electrode',evoFile:'electrode.png'},
+  {name:'Exeggcute',file:'exeggcute.png',evoName:'Exeggutor',evoFile:'exeggutor.png'},
+  {name:'Cubone',file:'cubone.png',evoName:'Marowak',evoFile:'marowak.png'},
+  {name:'Koffing',file:'koffing.png',evoName:'Weezing',evoFile:'weezing.png'},
+  {name:'Rhyhorn',file:'rhyhorn.png',evoName:'Rhydon',evoFile:'rhydon.png'},
+  {name:'Horsea',file:'horsea.png',evoName:'Seadra',evoFile:'seadra.png'},
+  {name:'Goldeen',file:'goldeen.png',evoName:'Seaking',evoFile:'seaking.png'},
+  {name:'Staryu',file:'staryu.png',evoName:'Starmie',evoFile:'starmie.png'},
+  {name:'Magikarp',file:'magikarp.png',evoName:'Gyarados',evoFile:'gyarados.png'},
+  {name:'Dratini',file:'dratini.png',evoName:'Dragonair',evoFile:'dragonair.png'},
+  {name:'Omanyte',file:'omanyte.png',evoName:'Omastar',evoFile:'omastar.png'},
+  {name:'Kabuto',file:'kabuto.png',evoName:'Kabutops',evoFile:'kabutops.png'},
+  {name:'Eevee',file:'eevee.png',evos:[{name:'Vaporeon',file:'vaporeon.png'},{name:'Jolteon',file:'jolteon.png'},{name:'Flareon',file:'flareon.png'}]},
+];
+
+// Files that are evolved forms — harder to catch with a standard ball
+const EVO_FILES = new Set();
+EVOLUTIONS.forEach(e => { if (e.evos) e.evos.forEach(x => EVO_FILES.add(x.file)); else EVO_FILES.add(e.evoFile); });
+
+// Epic attackers: legendaries/rares + final (3rd-stage) evolutions get screen-filling FX
+const EPIC_FILES = new Set([
+  'mew.png','mewtwo.png','articuno.png','zapdos.png','moltres.png','dragonite.png',
+  'venusaur.png','charizard.png','blastoise.png','butterfree.png','beedrill.png',
+  'pidgeot.png','vileplume.png','poliwrath.png','alakazam.png','machamp.png',
+  'victreebel.png','golem.png','nidoking.png','nidoqueen.png'
+]);
+
+// Opponents: gym leaders with their pokémon (+ Team Rocket)
+const OPPONENTS = [
+  {name:'Team Rocket', imgs:['jessie.png','james.png','meowth.png']},
+  {name:'Brock', imgs:['leader_brock.png','geodude.png','onix.png']},
+  {name:'Misty', imgs:['leader_misty.png','staryu.png','starmie.png']},
+  {name:'Lt. Surge', imgs:['leader_surge.png','voltorb.png','raichu.png']},
+  {name:'Erika', imgs:['leader_erika.png','gloom.png','vileplume.png']},
+  {name:'Koga', imgs:['leader_koga.png','koffing.png','weezing.png']},
+  {name:'Sabrina', imgs:['leader_sabrina.png','kadabra.png','alakazam.png']},
+  {name:'Blaine', imgs:['leader_blaine.png','magmar.png','arcanine.png']},
+  {name:'Giovanni', imgs:['leader_giovanni.png','rhydon.png','nidoking.png']},
+];
+
+let currentPoke = null;
+let currentEvo = null;
+let currentOpp = null;
+let oppBag = [];
+let pokeRocketIdx = 0; // which team rocket member to blast next (0-2)
+let phase = 1;
+let roundInPhase = 0;
+let targetNum = 0;
+let score = 0;
+let isWin = false;
+let dragData = null;
+let audioCtx = null;
+let audioInit = false;
+let slotsFilled = 0;
+let totalSlots = 1;
+let hintTimer = null;
+const ROUNDS_PER_PHASE = 10;
+
+// ---------- Pokédex (captured pokémon, persisted) ----------
+const TYPE_EMOJI = {electric:'⚡',fire:'🔥',water:'💧',psychic:'🔮',ghost:'👻',fairy:'✨',dragon:'🐉',normal:'⭐',
+  grass:'🌿',poison:'☠️',flying:'🕊️',bug:'🐛',rock:'🪨',ground:'🟫',steel:'⚙️',ice:'❄️',fighting:'🥊',dark:'🌑'};
+const TYPE_PT = {electric:'Electric',fire:'Fire',water:'Water',psychic:'Psychic',ghost:'Ghost',fairy:'Fairy',dragon:'Dragon',normal:'Normal',
+  grass:'Grass',poison:'Poison',flying:'Flying',bug:'Bug',rock:'Rock',ground:'Ground',steel:'Steel',ice:'Ice',fighting:'Fighting',dark:'Dark'};
+
+let dexCaught = {};
+try { dexCaught = JSON.parse(localStorage.getItem('numeros_dex') || '{}'); } catch(e) {}
+// Master Balls: earned by completing all numbers, 100% catch on anything
+let masterBalls = 0;
+try { masterBalls = parseInt(localStorage.getItem('numeros_masterballs') || '0', 10) || 0; } catch(e) {}
+function saveMasterBalls() { try { localStorage.setItem('numeros_masterballs', String(masterBalls)); } catch(e) {} }
+let useMasterBall = false; // armed for the current capture attempt
+// Everyone starts with Pikachu
+if (!dexCaught['pikachu.png']) { dexCaught['pikachu.png'] = 1; }
+function saveDex() { try { localStorage.setItem('numeros_dex', JSON.stringify(dexCaught)); } catch(e) {} }
+saveDex();
+function dexTotal() { return Object.keys(dexCaught).length; }
+
+// Set the player's active fighter from any captured pokémon file.
+// Looks up its type (attack animation) and evolution (if it has one).
+function setActivePoke(file) {
+  const p = POKEDEX.find(x => x.file === file) || { name: file, types: ['normal'] };
+  const ev = EVOLUTIONS.find(x => x.file === file);
+  currentEvo = ev
+    ? (ev.evos ? ev.evos[Math.floor(Math.random() * ev.evos.length)] : { name: ev.evoName, file: ev.evoFile })
+    : null;
+  currentPoke = { name: p.name, file: p.file, types: (p.types && p.types.length ? p.types : ['normal']) };
+  setPokeImage(currentPoke);
+}
+
+let gameStartedFlag = false;
+
+function openDex() {
+  renderDex();
+  document.getElementById('dexOverlay').classList.add('active');
+  clearInterval(hintTimer); // pause number hints while browsing
+}
+function closeDex() {
+  document.getElementById('dexOverlay').classList.remove('active');
+  closeDexDetail();
+  // Resume challenge hints if a round (or capture challenge) is waiting for an answer
+  if (gameStartedFlag && !isWin && document.querySelectorAll('.slot:not(.filled)').length > 0) {
+    speakChallenge();
+    clearInterval(hintTimer);
+    hintTimer = setInterval(function() { speakChallenge(); }, 5000);
+  }
+}
+function renderDex() {
+  const grid = document.getElementById('dexGrid');
+  grid.innerHTML = '';
+  document.getElementById('dexCount').textContent = dexTotal() + '/' + POKEDEX.length;
+  POKEDEX.forEach(function(p) {
+    const n = dexCaught[p.file] || 0;
+    const cell = document.createElement('div');
+    cell.className = 'dex-cell ' + (n > 0 ? 'caught' : 'uncaught');
+    cell.innerHTML = '<img src="assets/' + p.file + '" alt="">' +
+      '<div class="dex-num">#' + p.id + '</div>' +
+      (n > 1 ? '<div class="dex-x">×' + n + '</div>' : '');
+    if (n > 0) cell.addEventListener('click', function() { openDexDetail(p); });
+    grid.appendChild(cell);
+  });
+}
+function openDexDetail(p) {
+  const n = dexCaught[p.file] || 0;
+  const types = p.types.map(function(t) {
+    return '<span class="dc-type">' + (TYPE_EMOJI[t] || '⭐') + ' ' + (TYPE_PT[t] || t) + '</span>';
+  }).join('');
+  const bar = function(label, v) {
+    return '<div class="dc-stat"><div class="dc-label">' + label + '</div>' +
+      '<div class="dc-barbg"><div class="dc-bar" style="width:' + Math.min(100, Math.round(v / 2)) + '%"></div></div>' +
+      '<div class="dc-val">' + v + '</div></div>';
+  };
+  const card = document.getElementById('dexCard');
+  const swapBtn = (gameStartedFlag && !isWin)
+    ? '<button class="dc-swap" id="dcSwap">⚔️ Lutar com este!</button>' : '';
+  card.innerHTML = '<img src="assets/' + p.file + '" alt="">' +
+    '<div class="dc-name">' + p.name + '</div>' +
+    '<div class="dc-num">#' + p.id + ' — apanhado ×' + n + '</div>' +
+    '<div class="dc-types">' + types + '</div>' +
+    bar('Ataque', p.atk) + bar('Defesa', p.def) + bar('Veloc.', p.spd) +
+    '<div>' + swapBtn + '<button class="dc-close" id="dcClose">Fechar</button></div>';
+  document.getElementById('dexDetail').classList.add('active');
+  speakMix([{en: p.name + '!'}]);
+  document.getElementById('dcClose').addEventListener('click', closeDexDetail);
+  if (swapBtn) {
+    document.getElementById('dcSwap').addEventListener('click', function() {
+      setActivePoke(p.file);
+      speakMix([{en: p.name}, {pt: ', eu escolho-te!'}]);
+      closeDexDetail();
+      closeDex();
+    });
+  }
+}
+function closeDexDetail() {
+  document.getElementById('dexDetail').classList.remove('active');
+}
+
+// ---------- Wild encounter + capture ----------
+let wild = null;          // current wild pokémon (POKEDEX entry)
+let captureMode = false;  // the number challenge on screen is a capture attempt
+let wildTimer = null;
+
+function proceedNextRound() {
+  roundInPhase++;
+  loadRound();
+}
+
+function startWildEncounter() {
+  wild = POKEDEX[Math.floor(Math.random() * POKEDEX.length)];
+  captureMode = false;
+  document.getElementById('arena').classList.add('wild-active');
+  document.getElementById('wildOverlay').classList.remove('catch-mode');
+  const wildImg = document.getElementById('wildImg');
+  wildImg.className = 'wild-img';
+  wildImg.src = 'assets/' + wild.file;
+  document.getElementById('wildLabel').textContent = wild.name + ' selvagem!';
+  document.getElementById('ballBtn').style.display = '';
+  useMasterBall = false;
+  const mbBtn = document.getElementById('masterBallBtn');
+  mbBtn.style.display = masterBalls > 0 ? '' : 'none';
+  document.getElementById('mbCount').textContent = '×' + masterBalls;
+  document.getElementById('wildSkip').style.display = '';
+  const hint = document.getElementById('wildHint');
+  hint.style.display = '';
+  hint.textContent = 'Toca na Poké Ball!';
+  document.getElementById('wildOverlay').classList.add('active');
+  speakMix([{pt: 'Um '}, {en: wild.name}, {pt: ' selvagem apareceu! Toca na Poké Ball para o apanhares!'}]);
+  clearTimeout(wildTimer);
+  wildTimer = setTimeout(endWildEncounter, 14000); // ignored — it wanders off
+}
+
+function endWildEncounter() {
+  clearTimeout(wildTimer);
+  wild = null;
+  useMasterBall = false;
+  document.getElementById('masterBallBtn').style.display = 'none';
+  captureMode = false;
+  document.getElementById('arena').classList.remove('wild-active');
+  document.getElementById('wildOverlay').classList.remove('active');
+  document.getElementById('wildOverlay').classList.remove('catch-mode');
+  document.body.classList.remove('catching');
+  proceedNextRound();
+}
+
+function startCaptureChallenge() {
+  if (!wild || captureMode) return;
+  clearTimeout(wildTimer);
+  captureMode = true;
+  // Grass stays full-screen; the wild pokémon moves up and the
+  // slots + number pool lift above the grass so they stay tappable
+  document.getElementById('wildOverlay').classList.add('catch-mode');
+  document.body.classList.add('catching');
+  document.getElementById('ballBtn').style.display = 'none';
+  document.getElementById('masterBallBtn').style.display = 'none';
+  document.getElementById('wildHint').textContent = 'Responde bem para o apanhares!';
+  // Random challenge at current phase difficulty — wrong answer = it flees
+  presentChallenge(makeChallenge());
+}
+
+function spawnCatchStars(x, y) {
+  for (let i = 0; i < 8; i++) {
+    const s = document.createElement('div');
+    s.className = 'catch-star';
+    s.textContent = i % 2 ? '⭐' : '✨';
+    s.style.left = (x + (Math.random() * 120 - 60)) + 'px';
+    s.style.top = (y + (Math.random() * 60 - 30)) + 'px';
+    document.body.appendChild(s);
+    setTimeout(function() { s.remove(); }, 850);
+  }
+}
+
+// Correct answer in capture mode: throw the ball.
+// Master Ball: always caught. Standard ball: 100% base pokémon, 70% evolutions.
+function runCaptureThrow() {
+  clearInterval(hintTimer);
+  const wp = wild;                       // snapshot — skip/end must not null this mid-flight
+  const master = useMasterBall;          // snapshot too — consumed on throw
+  useMasterBall = false;
+  if (master) { masterBalls = Math.max(0, masterBalls - 1); saveMasterBalls(); }
+  document.getElementById('wildSkip').style.display = 'none';
+  const wildImg = document.getElementById('wildImg');
+  const wr = wildImg.getBoundingClientRect();
+  const ball = document.createElement('img');
+  ball.src = master ? 'assets/masterball.png' : 'assets/pokeball.png';
+  ball.className = 'thrown-ball';
+  ball.style.left = (window.innerWidth / 2 - 32) + 'px';
+  ball.style.top = (window.innerHeight - 84) + 'px';
+  document.body.appendChild(ball);
+  requestAnimationFrame(function() { requestAnimationFrame(function() {
+    ball.style.left = (wr.left + wr.width / 2 - 32) + 'px';
+    ball.style.top = (wr.top + wr.height / 2 - 32) + 'px';
+  }); });
+  setTimeout(function() {
+    wildImg.classList.add('into-ball');   // pokémon shrinks into the ball
+    sfxCorrect();
+    setTimeout(function() {
+      ball.classList.add('wiggle');        // 3 wiggles (~1.35s)
+      setTimeout(function() {
+        const catchRate = master ? 1 : (EVO_FILES.has(wp.file) ? 0.7 : 1);
+        if (Math.random() < catchRate) {
+          dexCaught[wp.file] = (dexCaught[wp.file] || 0) + 1;
+          saveDex();
+          const br = ball.getBoundingClientRect();
+          spawnCatchStars(br.left + 32, br.top + 32);
+          speakMix([{pt: 'Apanhaste o '}, {en: wp.name + '!'}]);
+          setTimeout(function() { ball.remove(); endWildEncounter(); }, 1700);
+        } else {
+          ball.remove();
+          wildImg.classList.remove('into-ball');
+          speakMix([{pt: 'Oh não! O '}, {en: wp.name}, {pt: ' escapou da Poké Ball!'}]);
+          setTimeout(function() {
+            wildImg.classList.add('flee');
+            setTimeout(endWildEncounter, 600);
+          }, 1000);
+        }
+      }, 1450);
+    }, 500);
+  }, 550);
+}
+
+// Wrong answer in capture mode: the wild pokémon runs away immediately
+function wildFlees() {
+  clearInterval(hintTimer);
+  sfxWrong();
+  showFeedback('❌', 'fail');
+  const wildImg = document.getElementById('wildImg');
+  wildImg.classList.add('flee');
+  speakMix([{pt: 'O '}, {en: wild.name}, {pt: ' fugiu!'}]);
+  setTimeout(endWildEncounter, 1000);
+}
+
+function initAudio() {
+  if (audioInit) return;
+  audioInit = true;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e) {}
+}
+document.addEventListener('touchstart', initAudio, { once: true });
+document.addEventListener('click', initAudio, { once: true });
+
+function speak(text, cb) {
+  if (!window.speechSynthesis) { if(cb) cb(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'pt-PT'; u.rate = 0.85; u.pitch = 1.0;
+  u.onend = () => { if(cb) cb(); };
+  u.onerror = () => { if(cb) cb(); };
+  window.speechSynthesis.speak(u);
+}
+
+// Mixed-language speech: Portuguese sentence, pokémon names in English.
+// parts: array of {pt:'texto'} and/or {en:'Name'}
+function speakMix(parts, cb) {
+  if (!window.speechSynthesis) { if(cb) cb(); return; }
+  window.speechSynthesis.cancel();
+  const voices = window.speechSynthesis.getVoices();
+  const enVoice = voices.find(v => /^en([-_]|$)/i.test(v.lang)) || null;
+  let i = 0;
+  function next() {
+    if (i >= parts.length) { if (cb) cb(); return; }
+    const part = parts[i++];
+    const text = part.en || part.pt || '';
+    if (!text) { next(); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    if (part.en) { u.lang = 'en-US'; if (enVoice) u.voice = enVoice; }
+    else { u.lang = 'pt-PT'; }
+    u.rate = 0.85; u.pitch = 1.0;
+    // Watchdog: if the engine never fires onend/onerror, advance anyway
+    let done = false;
+    const advance = function() { if (done) return; done = true; clearTimeout(wd); next(); };
+    const wd = setTimeout(advance, text.length * 250 + 2000);
+    u.onend = advance; u.onerror = advance;
+    window.speechSynthesis.speak(u);
+  }
+  next();
+}
+
+// ---------- Multi-mode challenge engine ----------
+// Every round / battle attack / capture attempt draws a random mode:
+// números, contar, somar, sequência or letras — you never know what's coming.
+const NUM_NAMES = ['zero','um','dois','três','quatro','cinco','seis','sete','oito','nove',
+  'dez','onze','doze','treze','catorze','quinze','dezasseis','dezassete','dezoito','dezanove','vinte'];
+const LETTER_NAMES = { A:'á', B:'bê', C:'cê', D:'dê', E:'é', F:'éfe', G:'gê', H:'agá', I:'i',
+  J:'jota', K:'cá', L:'éle', M:'éme', N:'éne', O:'ó', P:'pê', Q:'quê', R:'érre',
+  S:'ésse', T:'tê', U:'u', V:'vê', W:'dáblio', X:'xis', Y:'ípsilon', Z:'zê' };
+const COUNT_ITEMS = [
+  { emoji:'⚡', name:'raios', f:false }, { emoji:'🔥', name:'chamas', f:true },
+  { emoji:'💧', name:'gotas', f:true }, { emoji:'🍎', name:'maçãs', f:true },
+  { emoji:'⭐', name:'estrelas', f:true }, { emoji:'🎈', name:'balões', f:false },
+  { emoji:'🐟', name:'peixes', f:false }, { emoji:'🌸', name:'flores', f:true },
+  { emoji:'🍬', name:'doces', f:false }, { emoji:'🦋', name:'borboletas', f:true }
+];
+let currentChallenge = null;
+
+function makeChallenge() {
+  const MODES = ['numeros', 'contar', 'somar', 'sequencia', 'letras'];
+  const mode = MODES[Math.floor(Math.random() * MODES.length)];
+  const ch = { mode, questionHTML: '', hint: '', speakText: '', slots: [], pool: [] };
+  const numPool = () => getPoolForPhase(phase).map(String);
+
+  if (mode === 'numeros') {
+    const n = phase === 1 ? Math.floor(Math.random() * 10) : 10 + Math.floor(Math.random() * 11);
+    ch.slots = getNumberDigits(n).map(String);
+    ch.pool = numPool();
+    ch.hint = 'Onde está o número?';
+    ch.speakText = 'Onde está o ' + NUM_NAMES[n] + '?';
+
+  } else if (mode === 'contar') {
+    const n = phase === 1 ? 1 + Math.floor(Math.random() * 9) : 10 + Math.floor(Math.random() * 6);
+    const item = COUNT_ITEMS[Math.floor(Math.random() * COUNT_ITEMS.length)];
+    ch.slots = getNumberDigits(n).map(String);
+    ch.pool = numPool();
+    ch.questionHTML = Array(n).fill(item.emoji).join(' ');
+    ch.hint = (item.f ? 'Quantas' : 'Quantos') + ' vês?';
+    ch.speakText = (item.f ? 'Quantas ' : 'Quantos ') + item.name + ' vês?';
+
+  } else if (mode === 'somar') {
+    let a, b;
+    if (phase === 1) { a = 1 + Math.floor(Math.random() * 5); b = 1 + Math.floor(Math.random() * (9 - a)); }
+    else { do { a = 2 + Math.floor(Math.random() * 9); b = 2 + Math.floor(Math.random() * 9); } while (a + b < 10 || a + b > 20); }
+    const n = a + b;
+    ch.slots = getNumberDigits(n).map(String);
+    ch.pool = numPool();
+    ch.questionHTML = a + ' + ' + b + ' = <span class="seq-blank">?</span>';
+    ch.hint = 'Faz a soma!';
+    ch.speakText = 'Quanto é ' + NUM_NAMES[a] + ' mais ' + NUM_NAMES[b] + '?';
+
+  } else if (mode === 'sequencia') {
+    let seq, ans;
+    if (phase === 1) {
+      const start = Math.floor(Math.random() * 6);          // answer = start+3, max 8
+      seq = [start, start + 1, start + 2]; ans = start + 3;
+    } else {
+      const s = [2, 5, 10][Math.floor(Math.random() * 3)];
+      if (s === 10) { seq = [0, 10]; ans = 20; }
+      else {
+        const minStart = Math.max(0, Math.ceil((10 - 3 * s) / s)) * s;      // answer ≥ 10
+        const start = minStart + Math.floor(Math.random() * ((20 - 3 * s - minStart) / s + 1)) * s;
+        seq = [start, start + s, start + 2 * s]; ans = start + 3 * s;
+      }
+    }
+    ch.slots = getNumberDigits(ans).map(String);
+    ch.pool = numPool();
+    ch.questionHTML = seq.join(', ') + ', <span class="seq-blank">?</span>';
+    ch.hint = 'Que número falta?';
+    ch.speakText = 'Que número falta? ' + seq.map(x => NUM_NAMES[x]).join(', ') + '...';
+
+  } else { // letras
+    const range = phase === 1 ? 'ABCDEFGHIJKLM' : 'NOPQRSTUVWXYZ';
+    const ans = range[Math.floor(Math.random() * range.length)];
+    const distractors = shuffle(range.split('').filter(l => l !== ans)).slice(0, 5);
+    ch.slots = [ans];
+    ch.pool = shuffle([ans].concat(distractors));
+    ch.hint = 'Onde está a letra?';
+    ch.speakText = 'Onde está a letra ' + LETTER_NAMES[ans] + '?';
+  }
+  return ch;
+}
+
+// Present a challenge: question visual + slots + tile pool + voice (used by rounds AND captures)
+function presentChallenge(ch) {
+  currentChallenge = ch;
+  totalSlots = ch.slots.length;
+  slotsFilled = 0;
+  document.getElementById('feedbackMsg').textContent = '';
+  document.getElementById('phraseHint').textContent = ch.hint;
+  const q = document.getElementById('challengeQ');
+  q.innerHTML = ch.questionHTML;
+  q.style.display = ch.questionHTML ? 'flex' : 'none';
+  buildChallenge(ch);
+  speak(ch.speakText);
+  clearInterval(hintTimer);
+  hintTimer = setInterval(() => speak(ch.speakText), 5000);
+}
+
+function speakChallenge() { if (currentChallenge) speak(currentChallenge.speakText); }
+
+function sfxCorrect() {
+  try {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(523, audioCtx.currentTime);
+    o.frequency.linearRampToValueAtTime(784, audioCtx.currentTime + 0.15);
+    g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.2);
+  } catch(e) {}
+}
+function sfxWrong() {
+  try {
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = 'square'; o.frequency.value = 180;
+    g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.25);
+  } catch(e) {}
+}
+function sfxBlast() {
+  try {
+    if (!audioCtx) return;
+    const bufSize = audioCtx.sampleRate * 0.5;
+    const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/(bufSize*0.2));
+    const src = audioCtx.createBufferSource(); src.buffer = buf;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+    src.connect(g); g.connect(audioCtx.destination);
+    src.start(); src.stop(audioCtx.currentTime + 0.5);
+  } catch(e) {}
+}
+
+function shuffle(a) { const arr=[...a];for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr; }
+function getNumberDigits(n) { return n < 10 ? [n] : [Math.floor(n/10), n % 10]; }
+function getPoolForPhase(ph) {
+  if (ph === 1) return shuffle([0,1,2,3,4,5,6,7,8,9]);
+  return shuffle([0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9]);
+}
+
+// Intro animation
+function showIntro(imgSrc, name, duration, callback) {
+  const overlay = document.getElementById('introOverlay');
+  const img = document.getElementById('introImage');
+  const nameEl = document.getElementById('introName');
+  
+  img.src = imgSrc;
+  nameEl.textContent = name;
+  overlay.classList.add('active');
+  
+  let done = false;
+  function proceed() {
+    if (done) return; done = true;
+    overlay.classList.remove('active');
+    if (callback) setTimeout(callback, 350);
+  }
+  
+  // Speak the name
+  if (window.speechSynthesis && window.speechSynthesis.speak) {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(name + '!');
+    u.lang = 'en-US'; u.rate = 0.85;
+    u.onend = function() { setTimeout(proceed, 300); };
+    window.speechSynthesis.speak(u);
+    setTimeout(proceed, duration+500);
+  } else {
+    setTimeout(proceed, duration);
+  }
+}
+
+function buildOppRow() {
+  const row = document.getElementById('rocketRow');
+  row.innerHTML = '';
+  currentOpp.imgs.forEach(function(f, i) {
+    const img = document.createElement('img');
+    img.className = 'char-img rocket-img';
+    img.id = 'oppMember' + i;
+    img.src = 'assets/' + f;
+    row.appendChild(img);
+  });
+  document.getElementById('oppName').textContent = currentOpp.name;
+}
+
+// Evolution sequence after a fight is won: 1.2s base hold → flash → crossfade to evolved
+function runEvolution(callback) {
+  const preFile = currentPoke.file, postFile = currentEvo.file;
+  const overlay = document.getElementById('evoOverlay');
+  document.getElementById('evoBase').src = 'assets/' + currentPoke.file;
+  document.getElementById('evoEvolved').src = 'assets/' + currentEvo.file;
+  document.getElementById('evoName').textContent = 'O ' + currentPoke.name + ' está a evoluir…';
+  overlay.classList.remove('evolving');
+  overlay.classList.add('active');
+  speakMix([{pt: 'O '}, {en: currentPoke.name}, {pt: ' está a evoluir!'}]);
+  setTimeout(function() {
+    overlay.classList.add('evolving');
+    sfxCorrect();
+    document.getElementById('evoName').textContent = currentPoke.name + ' evoluiu para ' + currentEvo.name + '!';
+    setTimeout(function() { speakMix([{en: currentEvo.name + '!'}]); }, 600);
+    setTimeout(function() {
+      overlay.classList.remove('active');
+      overlay.classList.remove('evolving');
+      // Both forms join the pokédex, and the evolved form becomes the fighter
+      dexCaught[preFile] = Math.max(1, dexCaught[preFile] || 0);
+      dexCaught[postFile] = (dexCaught[postFile] || 0) + 1;
+      saveDex();
+      setActivePoke(postFile);
+      if (callback) callback();
+    }, 2400);
+  }, 2600);
+}
+
+function startFight(callback) {
+    // The player keeps their active pokémon across fights (swapped via the pokédex,
+    // evolved after each gym). Only captured pokémon can fight.
+    if (!currentPoke) setActivePoke('pikachu.png');
+
+    // Pick next opponent (shuffled bag, no repeats until exhausted)
+    if (oppBag.length === 0) oppBag = shuffle(OPPONENTS.map((_, i) => i));
+    let oppIdx = oppBag.pop();
+    if (currentOpp && OPPONENTS[oppIdx].name === currentOpp.name && oppBag.length > 0) {
+      const alt = oppBag.pop(); oppBag.push(oppIdx); oppIdx = alt;
+    }
+    currentOpp = OPPONENTS[oppIdx];
+
+    pokeRocketIdx = 0;
+    setPokeImage(currentPoke);
+    buildOppRow();
+
+    // Show Pokemon → speaks name. Then show opponent → speaks "contra {name}"
+    showIntro('assets/' + currentPoke.file, currentPoke.name, 2200, function() {
+      document.getElementById('pokeSide').style.opacity = '0';
+      document.getElementById('rocketSide').style.opacity = '0';
+
+      const overlay = document.getElementById('introOverlay');
+      overlay.innerHTML = '';
+      overlay.style.display = 'flex';
+      overlay.style.flexDirection = 'column';
+      overlay.style.alignItems = 'center';
+      overlay.style.justifyContent = 'center';
+
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.gap = 'clamp(2px, 1vw, 8px)';
+      row.style.marginLeft = '-8px';
+      row.style.alignItems = 'flex-end';
+      row.style.marginBottom = '8px';
+
+      currentOpp.imgs.forEach(function(f) {
+        var img = document.createElement('img');
+        img.src = 'assets/' + f;
+        img.style.width = 'clamp(80px, 20vw, 150px)';
+        img.style.height = 'clamp(80px, 20vw, 150px)';
+        img.style.objectFit = 'contain';
+        img.style.animation = 'introEntrance 0.5s ease forwards';
+        img.style.marginRight = '-12px';
+        row.appendChild(img);
+      });
+      overlay.appendChild(row);
+
+      var nameEl = document.createElement('div');
+      nameEl.className = 'intro-name';
+      nameEl.textContent = currentOpp.name + '!';
+      overlay.appendChild(nameEl);
+      overlay.classList.add('active');
+
+      // Speak "contra {name}!" now that they're visible
+      if (window.speechSynthesis) {
+        var u = new SpeechSynthesisUtterance('contra ' + currentOpp.name + '!');
+        u.lang = 'en-US'; u.rate = 0.85;
+        u.onend = function() {
+          overlay.classList.remove('active');
+          setTimeout(function() {
+            overlay.innerHTML = '<img class="intro-char" id="introImage" src="" alt=""><div class="intro-name" id="introName"></div>';
+            overlay.style.display = '';
+            overlay.style.flexDirection = '';
+            overlay.style.alignItems = '';
+            overlay.style.justifyContent = '';
+          }, 400);
+          document.getElementById('pokeSide').style.opacity = '1';
+          document.getElementById('rocketSide').style.opacity = '1';
+          if (callback) callback();
+        };
+        window.speechSynthesis.speak(u);
+      } else {
+        setTimeout(function() {
+          overlay.classList.remove('active');
+          setTimeout(function() {
+            overlay.innerHTML = '<img class="intro-char" id="introImage" src="" alt=""><div class="intro-name" id="introName"></div>';
+            overlay.style.display = '';
+            overlay.style.flexDirection = '';
+            overlay.style.alignItems = '';
+            overlay.style.justifyContent = '';
+          }, 400);
+          document.getElementById('pokeSide').style.opacity = '1';
+          document.getElementById('rocketSide').style.opacity = '1';
+          if (callback) callback();
+        }, 1500);
+      }
+    });
+  }
+
+function loadRound() {
+  isWin = false;
+  if (phase === 1 && roundInPhase >= ROUNDS_PER_PHASE) { phase = 2; roundInPhase = 0; }
+
+  document.getElementById('phaseDisplay').textContent = phase === 1 ? '0-9' : '10-20';
+  document.getElementById('roundDisplay').textContent = (roundInPhase + 1) + '/' + ROUNDS_PER_PHASE;
+
+  // Fight won (evolution already happened right after the last attack) → next fight or win
+  const gameDone = (phase === 2 && roundInPhase >= ROUNDS_PER_PHASE);
+  if (pokeRocketIdx >= 3) {
+    if (gameDone) { clearInterval(hintTimer); onWin(); }
+    else startFight(() => { clearInterval(hintTimer); loadRound(); });
+    return;
+  }
+  if (gameDone) { onWin(); return; }
+
+  // Random challenge every round — números, contar, somar, sequência or letras
+  presentChallenge(makeChallenge());
+}
+
+// Build slots + tile pool from a challenge (shared by normal rounds and capture challenges)
+function buildChallenge(ch) {
+  const slotsEl = document.getElementById('slotsContainer');
+  slotsEl.innerHTML = '';
+  ch.slots.forEach((d) => {
+    const div = document.createElement('div');
+    div.className = 'slot';
+    div.dataset.expected = d;
+    div.textContent = '';
+    div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('drag-over'); });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+    div.addEventListener('drop', e => {
+      e.preventDefault(); div.classList.remove('drag-over');
+      try { const v=e.dataTransfer.getData('text/plain'); if(v) handleNumberDrop(v,div,null); }catch(_){}
+    });
+    slotsEl.appendChild(div);
+  });
+
+  // Build pool
+  const pool = document.getElementById('numPool');
+  pool.innerHTML = '';
+  ch.pool.forEach((n) => {
+    const div = document.createElement('div');
+    div.className = 'num-tile';
+    div.draggable = true;
+    div.textContent = n;
+    div.dataset.value = n;
+    div.dataset.used = 'false';
+
+    div.addEventListener('dragstart', e => {
+      if (div.dataset.used === 'true') { e.preventDefault(); return; }
+      e.dataTransfer.setData('text/plain', String(n));
+      div.classList.add('dragging');
+    });
+    div.addEventListener('dragend', () => div.classList.remove('dragging'));
+
+    let tx, ty;
+    div.addEventListener('touchstart', e => {
+      if (div.dataset.used === 'true') return;
+      const t = e.touches[0]; tx = t.clientX; ty = t.clientY;
+      div.classList.add('dragging');
+      dragData = { value: n, el: div };
+      const ghost = document.getElementById('dragGhost');
+      ghost.textContent = n; ghost.style.display='flex';
+      ghost.style.left=t.clientX+'px'; ghost.style.top=t.clientY+'px';
+    }, { passive: true });
+    div.addEventListener('touchmove', e => {
+      e.preventDefault();
+      const t = e.touches[0];
+      document.getElementById('dragGhost').style.left=t.clientX+'px';
+      document.getElementById('dragGhost').style.top=t.clientY+'px';
+    }, { passive: false });
+    div.addEventListener('touchend', e => {
+      div.classList.remove('dragging');
+      document.getElementById('dragGhost').style.display='none';
+      const t = e.changedTouches[0];
+      const dx=t.clientX-tx, dy=t.clientY-ty;
+      if (Math.abs(dx)<5&&Math.abs(dy)<5) return;
+      if (dragData) {
+        const slots = document.querySelectorAll('.slot:not(.filled)');
+        for (const slot of slots) {
+          const r = slot.getBoundingClientRect();
+          if (t.clientX>=r.left&&t.clientX<=r.right&&t.clientY>=r.top&&t.clientY<=r.bottom) {
+            handleNumberDrop(dragData.value, slot, dragData.el); break;
+          }
+        }
+      }
+      dragData = null;
+    }, { passive: true });
+    div.addEventListener('click', () => {
+      if (div.dataset.used === 'true') return;
+      const slot = document.querySelector('.slot:not(.filled)');
+      if (slot) handleNumberDrop(n, slot, div);
+    });
+    pool.appendChild(div);
+  });
+}
+
+function handleNumberDrop(value, slotEl, sourceEl) {
+  if (isWin || !slotEl || slotEl.classList.contains('filled')) return;
+  const expected = slotEl.dataset.expected;
+  value = String(value);
+
+  if (value === expected) {
+    slotEl.classList.add('filled');
+    slotEl.textContent = value;
+    slotsFilled++;
+
+    if (sourceEl) { sourceEl.dataset.used='true'; sourceEl.classList.add('placed'); }
+    else {
+      document.querySelectorAll('.num-tile').forEach(el => {
+        if (el.dataset.value===value && el.dataset.used==='false') { el.dataset.used='true'; el.classList.add('placed'); }
+      });
+    }
+
+    sfxCorrect();
+    score++;
+    showFeedback('✅', 'ok');
+    document.getElementById('scoreDisplay').textContent = score;
+
+    if (slotsFilled === totalSlots) {
+      if (captureMode) setTimeout(runCaptureThrow, 300);
+      else setTimeout(triggerPokemonAttack, 300);
+    }
+  } else {
+    if (captureMode) { wildFlees(); return; }
+    slotEl.classList.add('wrong');
+    setTimeout(() => slotEl.classList.remove('wrong'), 400);
+    sfxWrong();
+    showFeedback('❌', 'fail');
+  }
+}
+
+// Phone rumble (Android Chrome/Firefox; iOS Safari ignores navigator.vibrate)
+function rumble(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {} }
+
+// ---------- Canvas attack FX engine (everything drawn, no emoji sprites) ----------
+function hexA(hex, a) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+}
+
+function runFx(render, duration) {
+  const c = document.createElement('canvas');
+  c.className = 'fx-canvas';
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = Math.round(window.innerWidth * dpr);
+  c.height = Math.round(window.innerHeight * dpr);
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = window.innerWidth, H = window.innerHeight, t0 = performance.now();
+  (function frame(now) {
+    const el = now - t0;
+    ctx.clearRect(0, 0, W, H);
+    render(ctx, W, H, el / 1000, Math.min(1, el / duration));
+    if (el < duration) requestAnimationFrame(frame);
+    else c.remove();
+  })(t0);
+}
+
+function waveY(x, t, a1, f1, s1, a2, f2, s2) {
+  return a1 * Math.sin(x * f1 + t * s1) + a2 * Math.sin(x * f2 - t * s2);
+}
+
+// One cohesive wall of flame with a noise-shaped front, rising bottom → top.
+// Erupts on the enemy once the front reaches them.
+function flameWall(pal, tx, ty) {
+  return function(ctx, W, H, t, p) {
+    const front = H + 60 - p * (H + 340);
+    ctx.globalAlpha = p > 0.85 ? (1 - p) / 0.15 : 1;
+    const body = ctx.createLinearGradient(0, front - 40, 0, H);
+    body.addColorStop(0, pal.core);
+    body.addColorStop(0.15, pal.mid);
+    body.addColorStop(0.55, pal.edge);
+    body.addColorStop(1, pal.deep);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(0, H + 2);
+    for (let x = 0; x <= W; x += 10) ctx.lineTo(x, front + waveY(x, t, 22, 0.018, 6.5, 12, 0.043, 10));
+    ctx.lineTo(W, H + 2);
+    ctx.closePath();
+    ctx.fill();
+    // bright tongues licking above the front line
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 22; i++) {
+      const x = ((i + 0.5) / 22) * W + Math.sin(i * 12.9898) * 22;
+      const fl = 0.5 + 0.5 * Math.sin(t * 13 + i * 2.4);
+      const base = front + waveY(x, t, 22, 0.018, 6.5, 12, 0.043, 10);
+      const th = 30 + 70 * fl;
+      const tg = ctx.createLinearGradient(0, base - th, 0, base);
+      tg.addColorStop(0, 'rgba(255,255,255,0)');
+      tg.addColorStop(1, pal.tongue);
+      ctx.fillStyle = tg;
+      ctx.beginPath();
+      ctx.ellipse(x, base - th * 0.45, 8 + 9 * fl, th * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // eruption where the wall engulfs the enemy
+    if (front < ty) {
+      const eng = Math.min(1, (ty - front) / 120);
+      const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, 30 + 90 * eng);
+      g.addColorStop(0, 'rgba(255,240,180,' + 0.9 * eng + ')');
+      g.addColorStop(1, 'rgba(255,90,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(tx, ty, 30 + 90 * eng, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 6; i++) {
+        const x = tx - 42 + i * 17;
+        const fl = 0.6 + 0.4 * Math.sin(t * 15 + i * 2.1);
+        const th = (36 + 44 * fl) * eng;
+        const tg2 = ctx.createLinearGradient(0, ty - th, 0, ty + 8);
+        tg2.addColorStop(0, 'rgba(255,255,220,0)');
+        tg2.addColorStop(1, pal.tongue);
+        ctx.fillStyle = tg2;
+        ctx.beginPath();
+        ctx.ellipse(x, ty - th * 0.4, 7 + 6 * fl, th * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+  };
+}
+
+// One cohesive sheet of water with a foam crest, falling top → bottom.
+// Splashes on the enemy when the surface reaches them.
+function waterSheet(tx, ty) {
+  return function(ctx, W, H, t, p) {
+    const surf = -60 + p * (H + 320);
+    ctx.globalAlpha = p > 0.85 ? (1 - p) / 0.15 : 1;
+    const body = ctx.createLinearGradient(0, 0, 0, surf + 40);
+    body.addColorStop(0, 'rgba(13,71,161,0.8)');
+    body.addColorStop(0.65, 'rgba(41,152,240,0.85)');
+    body.addColorStop(1, 'rgba(200,235,255,0.95)');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(0, -2);
+    ctx.lineTo(0, surf + waveY(0, t, 12, 0.02, 6, 6, 0.05, 9));
+    for (let x = 0; x <= W; x += 10) ctx.lineTo(x, surf + waveY(x, t, 12, 0.02, 6, 6, 0.05, 9));
+    ctx.lineTo(W, -2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 10) {
+      const y = surf + waveY(x, t, 12, 0.02, 6, 6, 0.05, 9) + 6;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // splash on the enemy when the sheet reaches them
+    if (surf >= ty - 10) {
+      const eng = Math.min(1, (surf - ty + 10) / 90);
+      ctx.strokeStyle = 'rgba(255,255,255,' + 0.9 * eng + ')';
+      for (let i = 0; i < 7; i++) {
+        const a = -Math.PI * (0.15 + 0.7 * i / 6);
+        const r = (30 + i * 9) * eng;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty + 6);
+        ctx.quadraticCurveTo(tx + Math.cos(a) * r * 0.6, ty + Math.sin(a) * r * 0.8,
+                             tx + Math.cos(a) * r, ty + 6 + Math.sin(a) * r * 0.4 + r * 0.35);
+        ctx.stroke();
+      }
+      const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, 60 * eng + 20);
+      g.addColorStop(0, 'rgba(220,242,255,' + 0.7 * eng + ')');
+      g.addColorStop(1, 'rgba(41,152,240,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(tx, ty, 60 * eng + 20, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  };
+}
+
+// Real jagged lightning bolts converging on the target + screen flash
+function lightningStorm(tx, ty) {
+  const bolts = [Math.random(), Math.random(), Math.random(), Math.random()];
+  function boltPath(ctx, x0, y0, x1, y1, rough) {
+    const segs = 14;
+    ctx.moveTo(x0, y0);
+    for (let i = 1; i < segs; i++) {
+      const f = i / segs;
+      ctx.lineTo(x0 + (x1 - x0) * f + (Math.random() - 0.5) * rough,
+                 y0 + (y1 - y0) * f + (Math.random() - 0.5) * rough * 0.6);
+    }
+    ctx.lineTo(x1, y1);
+  }
+  return function(ctx, W, H, t, p) {
+    const blink = Math.max(0, Math.sin(p * Math.PI * 4)) * 0.35 * (1 - p);
+    ctx.fillStyle = 'rgba(255,255,200,' + blink + ')';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = p < 0.75 ? 1 : (1 - p) / 0.25;
+    bolts.forEach(function(seed, i) {
+      if (Math.sin(t * 45 + seed * 40) < -0.55) return; // flicker
+      const sx = seed * W, sy = -10;
+      ctx.shadowColor = '#fff59d'; ctx.shadowBlur = 16;
+      ctx.strokeStyle = 'rgba(159,139,255,0.85)'; ctx.lineWidth = 7;
+      ctx.beginPath(); boltPath(ctx, sx, sy, tx, ty, 46); ctx.stroke();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); boltPath(ctx, sx, sy, tx, ty, 46); ctx.stroke();
+      ctx.shadowBlur = 0;
+    });
+    ctx.globalAlpha = 1;
+  };
+}
+
+// Concentric pulse rings — first centre is the enemy, the rest scatter (psychic / fairy / normal)
+function pulseRings(c1, c2, tx, ty) {
+  const centers = [{ x: tx / window.innerWidth, y: ty / window.innerHeight }];
+  for (let i = 0; i < 2; i++) centers.push({ x: 0.25 + 0.4 * i + (Math.random() - 0.5) * 0.08, y: 0.25 + Math.random() * 0.5 });
+  return function(ctx, W, H, t, p) {
+    const maxR = Math.max(W, H) * 0.35;
+    centers.forEach(function(cn, ci) {
+      for (let k = 0; k < 4; k++) {
+        const f = (p * 1.4 + k * 0.22 + ci * 0.1) % 1;
+        ctx.globalAlpha = (1 - f) * (p > 0.85 ? (1 - p) / 0.15 : 1);
+        ctx.strokeStyle = k % 2 ? c1 : c2;
+        ctx.lineWidth = 5 - f * 3;
+        ctx.shadowColor = c2; ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(cn.x * W, cn.y * H, f * maxR, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  };
+}
+
+function makeVerts(nv) {
+  const v = [];
+  for (let i = 0; i < nv; i++) {
+    const a = (i / nv) * Math.PI * 2, r = 0.7 + Math.random() * 0.45;
+    v.push([Math.cos(a) * r, Math.sin(a) * r]);
+  }
+  return v;
+}
+
+function drawShape(ctx, kind, s, pal, verts, t) {
+  if (kind === 'rock') {
+    const g = ctx.createLinearGradient(-s, -s, s, s);
+    g.addColorStop(0, pal.core); g.addColorStop(1, pal.edge);
+    ctx.fillStyle = g; ctx.strokeStyle = pal.edge; ctx.lineWidth = 2;
+    ctx.beginPath();
+    verts.forEach(function(v, i) { if (i) ctx.lineTo(v[0] * s, v[1] * s); else ctx.moveTo(v[0] * s, v[1] * s); });
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (kind === 'snow') {
+    ctx.strokeStyle = pal.mid; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.shadowColor = pal.core; ctx.shadowBlur = 8;
+    for (let i = 0; i < 6; i++) {
+      ctx.rotate(Math.PI / 3);
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(0, -s);
+      ctx.moveTo(0, -s * 0.55); ctx.lineTo(s * 0.28, -s * 0.75);
+      ctx.moveTo(0, -s * 0.55); ctx.lineTo(-s * 0.28, -s * 0.75);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  } else if (kind === 'leaf') {
+    ctx.fillStyle = pal.mid; ctx.strokeStyle = pal.edge; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.quadraticCurveTo(s * 0.9, -s * 0.2, 0, s);
+    ctx.quadraticCurveTo(-s * 0.9, -s * 0.2, 0, -s);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -s * 0.8); ctx.lineTo(0, s * 0.8); ctx.stroke();
+  } else if (kind === 'bug') {
+    ctx.fillStyle = pal.edge;
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.55, s * 0.75, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = pal.mid;
+    ctx.beginPath(); ctx.ellipse(0, -s * 0.15, s * 0.35, s * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+    const w = 0.4 + 0.6 * Math.abs(Math.sin(t * 30));
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.5 * w) + ')'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-s * 0.9, -s * 0.5 * w);
+    ctx.moveTo(0, 0); ctx.lineTo(s * 0.9, -s * 0.5 * w);
+    ctx.stroke();
+  } else if (kind === 'spark') {
+    ctx.fillStyle = pal.core; ctx.shadowColor = pal.mid; ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.quadraticCurveTo(s * 0.16, -s * 0.16, s, 0);
+    ctx.quadraticCurveTo(s * 0.16, s * 0.16, 0, s);
+    ctx.quadraticCurveTo(-s * 0.16, s * 0.16, -s, 0);
+    ctx.quadraticCurveTo(-s * 0.16, -s * 0.16, 0, -s);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// Shapes tumbling down from the top — half of them aimed onto the enemy (rocks, snowflakes, leaves, bugs, sparkles)
+function rainShapes(kind, pal, n, tx) {
+  const items = [];
+  for (let i = 0; i < (n || 8); i++) items.push({
+    x: (tx && i % 2 === 0) ? Math.min(0.97, Math.max(0.03, tx / window.innerWidth + (Math.random() - 0.5) * 0.12)) : Math.random(),
+    delay: i * 0.06 + Math.random() * 0.08, speed: 0.85 + Math.random() * 0.5,
+    rot: Math.random() * Math.PI * 2, spin: (Math.random() - 0.5) * 6,
+    size: 13 + Math.random() * 15, sway: Math.random() * Math.PI * 2, verts: makeVerts(7)
+  });
+  return function(ctx, W, H, t, p) {
+    items.forEach(function(it) {
+      const f = (t - it.delay) * it.speed / 1.1;
+      if (f < 0 || f > 1.15) return;
+      ctx.save();
+      ctx.translate(it.x * W + Math.sin(t * 2 + it.sway) * 14, -40 + f * (H + 120));
+      ctx.rotate(it.rot + t * it.spin);
+      drawShape(ctx, kind, it.size, pal, it.verts, t);
+      ctx.restore();
+    });
+  };
+}
+
+// Glowing wisps rising with wavy tails + dark vignette (ghost / dark).
+// The biggest wisp engulfs the enemy.
+function ghostWisps(vig, core, mid, tail, tx, ty) {
+  const wisps = [{
+    x: Math.min(0.97, Math.max(0.03, tx / window.innerWidth)), speed: 1.0, size: 34,
+    phase: 0, delay: 0, targetY: ty / window.innerHeight
+  }];
+  for (let i = 1; i < 7; i++) wisps.push({
+    x: Math.random(), speed: 0.7 + Math.random() * 0.5, size: 16 + Math.random() * 18,
+    phase: Math.random() * Math.PI * 2, delay: i * 0.08
+  });
+  return function(ctx, W, H, t, p) {
+    ctx.fillStyle = vig + (0.28 * Math.sin(Math.min(1, p) * Math.PI)) + ')';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    wisps.forEach(function(w) {
+      const f = (t - w.delay) * w.speed / 1.3;
+      if (f < 0 || f > 1.1) return;
+      const y = w.targetY ? (H + 40 - f * (H + 160 - (1 - w.targetY) * H)) : (H + 40 - f * (H + 160));
+      const x = w.x * W + Math.sin(t * 3 + w.phase) * 26;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, w.size);
+      g.addColorStop(0, core);
+      g.addColorStop(0.5, mid);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, w.size, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = tail; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y + w.size * 0.5);
+      for (let k = 1; k <= 6; k++) ctx.lineTo(x + Math.sin(t * 6 + w.phase + k) * 8, y + w.size * 0.5 + k * 9);
+      ctx.stroke();
+    });
+    ctx.globalCompositeOperation = 'source-over';
+  };
+}
+
+// Spinning vortex sweeping across the screen — flashes on the enemy as it passes (flying)
+function vortex(tx, ty) {
+  return function(ctx, W, H, t, p) {
+    const cx = W * (1.15 - p * 1.3), cy = H * 0.5;
+    ctx.globalAlpha = p > 0.85 ? (1 - p) / 0.15 : 1;
+    for (let i = 0; i < 9; i++) {
+      const f = i / 9;
+      ctx.strokeStyle = 'rgba(236,244,255,' + (0.75 - f * 0.5) + ')';
+      ctx.lineWidth = 6 - f * 3.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(cx + Math.sin(i * 3.3) * 12, cy, 30 + f * H * 0.45, t * 9 + i * 0.9, t * 9 + i * 0.9 + Math.PI * 0.9);
+      ctx.stroke();
+    }
+    // impact flash as the vortex passes over the enemy
+    const d = Math.abs(cx - tx);
+    if (d < 110) {
+      const eng = 1 - d / 110;
+      ctx.strokeStyle = 'rgba(255,255,255,' + 0.9 * eng + ')';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(tx, ty, 20 + (1 - eng) * 60, 0, Math.PI * 2); ctx.stroke();
+      const g = ctx.createRadialGradient(tx, ty, 0, tx, ty, 70 * eng + 20);
+      g.addColorStop(0, 'rgba(255,255,255,' + 0.6 * eng + ')');
+      g.addColorStop(1, 'rgba(176,190,197,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(tx, ty, 70 * eng + 20, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  };
+}
+
+function star8(ctx, s) {
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const r = i % 2 ? s * 0.45 : s, a = (i / 16) * Math.PI * 2;
+    if (i) ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); else ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+// Sequential impact starbursts — the first lands squarely on the enemy (fighting)
+function starPunches(pal, n, tx, ty) {
+  const pts = [{ x: tx / window.innerWidth, y: ty / window.innerHeight, at: 0 }];
+  for (let i = 1; i < n; i++) pts.push({ x: 0.15 + Math.random() * 0.7, y: 0.2 + Math.random() * 0.55, at: i * 0.14 });
+  return function(ctx, W, H, t, p) {
+    pts.forEach(function(pt) {
+      const f = (p - pt.at) / 0.18;
+      if (f < 0 || f > 1) return;
+      ctx.save();
+      ctx.translate(pt.x * W, pt.y * H); ctx.rotate(f * 0.6);
+      ctx.globalAlpha = 1 - f;
+      ctx.fillStyle = pal.core; ctx.strokeStyle = pal.edge; ctx.lineWidth = 3;
+      ctx.shadowColor = pal.mid; ctx.shadowBlur = 14;
+      star8(ctx, 12 + f * 46);
+      ctx.restore();
+    });
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  };
+}
+
+function combineFx(list) {
+  return function(ctx, W, H, t, p) { list.forEach(function(r) { r(ctx, W, H, t, p); }); };
+}
+
+// Epic full-screen attack FX for rare + 3rd-evolution pokémon — all custom drawn,
+// and every one of them visibly strikes the enemy at (tx, ty)
+function epicAttackFX(type, tx, ty) {
+  let render;
+  switch (type) {
+    case 'fire':
+      render = flameWall({ core:'rgba(255,246,200,0.95)', mid:'rgba(255,154,42,0.9)', edge:'rgba(255,77,0,0.8)', deep:'rgba(110,18,0,0.85)', tongue:'rgba(255,224,130,0.8)' }, tx, ty);
+      break;
+    case 'dragon':
+      render = flameWall({ core:'rgba(215,255,242,0.95)', mid:'rgba(52,211,153,0.9)', edge:'rgba(15,118,110,0.85)', deep:'rgba(4,60,50,0.85)', tongue:'rgba(178,255,230,0.8)' }, tx, ty);
+      break;
+    case 'water':    render = waterSheet(tx, ty); break;
+    case 'electric': render = lightningStorm(tx, ty); break;
+    case 'psychic':  render = pulseRings('#e1bee7', '#ab47bc', tx, ty); break;
+    case 'fairy':    render = combineFx([pulseRings('#ffd1ec', '#ff8fd6', tx, ty), rainShapes('spark', { core:'#fff0fa', mid:'#ff9fd8' }, 12, tx)]); break;
+    case 'rock':     render = rainShapes('rock', { core:'#cfc4b5', edge:'#5d4037' }, 9, tx); break;
+    case 'ground':   render = rainShapes('rock', { core:'#e6d3ae', edge:'#6d4c41' }, 10, tx); break;
+    case 'steel':    render = rainShapes('rock', { core:'#eceff1', edge:'#546e7a' }, 8, tx); break;
+    case 'ice':      render = rainShapes('snow', { core:'#ffffff', mid:'#b3e5fc' }, 12, tx); break;
+    case 'grass':    render = rainShapes('leaf', { mid:'#7ed957', edge:'#2e7d32' }, 12, tx); break;
+    case 'bug':      render = rainShapes('bug', { mid:'#aeea00', edge:'#33691e' }, 10, tx); break;
+    case 'ghost':    render = ghostWisps('rgba(30,0,60,', 'rgba(216,180,255,0.9)', 'rgba(142,36,170,0.55)', 'rgba(186,104,200,0.5)', tx, ty); break;
+    case 'dark':     render = ghostWisps('rgba(5,0,20,', 'rgba(120,90,220,0.85)', 'rgba(60,20,120,0.6)', 'rgba(90,50,160,0.5)', tx, ty); break;
+    case 'flying':   render = vortex(tx, ty); break;
+    case 'fighting': render = starPunches({ core:'#fff1e0', mid:'#ff9e66', edge:'#d84315' }, 5, tx, ty); break;
+    default:         render = pulseRings('#fff3c8', '#ffd54f', tx, ty); break;
+  }
+  runFx(render, 1500);
+}
+
+// Small type-shaped projectile for regular pokémon — flame, droplet, spark, leaf, pebble…
+const MINI_VERTS = [[1,0],[0.4,0.9],[-0.8,0.6],[-1,-0.3],[-0.2,-1],[0.7,-0.7]];
+const TUMBLE_TYPES = { rock:1, ground:1, steel:1, ice:1, grass:1, bug:1, fairy:1, fighting:1 };
+
+function drawMiniShape(ctx, type, s, t) {
+  const P = TYPE_FX[type] || TYPE_FX.normal;
+  if (type === 'fire' || type === 'dragon') {
+    // little flame teardrop, flickering
+    const fl = 0.85 + 0.3 * Math.sin(t * 25);
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 10;
+    ctx.fillStyle = P.mid;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * fl);
+    ctx.quadraticCurveTo(s * 0.9, -s * 0.1, 0, s * 0.7);
+    ctx.quadraticCurveTo(-s * 0.9, -s * 0.1, 0, -s * fl);
+    ctx.fill();
+    ctx.fillStyle = P.core;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.55 * fl);
+    ctx.quadraticCurveTo(s * 0.45, 0, 0, s * 0.45);
+    ctx.quadraticCurveTo(-s * 0.45, 0, 0, -s * 0.55 * fl);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (type === 'water') {
+    // droplet
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 8;
+    ctx.fillStyle = P.mid;
+    ctx.beginPath();
+    ctx.moveTo(0, -s);
+    ctx.quadraticCurveTo(s * 0.85, 0, 0, s * 0.85);
+    ctx.quadraticCurveTo(-s * 0.85, 0, 0, -s);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.arc(-s * 0.2, s * 0.1, s * 0.22, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (type === 'electric') {
+    // mini zigzag bolt
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.3, -s);
+    ctx.lineTo(s * 0.25, -s * 0.25);
+    ctx.lineTo(-s * 0.2, 0);
+    ctx.lineTo(s * 0.3, s);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  } else if (type === 'ice') {
+    drawShape(ctx, 'snow', s, { core: P.core, mid: P.mid }, null, t);
+  } else if (type === 'grass') {
+    drawShape(ctx, 'leaf', s, { mid: P.mid, edge: P.edge }, null, t);
+  } else if (type === 'bug') {
+    drawShape(ctx, 'bug', s, { mid: P.mid, edge: P.edge }, null, t);
+  } else if (type === 'rock' || type === 'ground' || type === 'steel') {
+    drawShape(ctx, 'rock', s, { core: P.core, edge: P.edge }, MINI_VERTS, t);
+  } else if (type === 'fairy') {
+    drawShape(ctx, 'spark', s, { core: P.core, mid: P.mid }, null, t);
+  } else if (type === 'fighting') {
+    ctx.fillStyle = P.core; ctx.strokeStyle = P.edge; ctx.lineWidth = 2;
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 10;
+    star8(ctx, s);
+    ctx.shadowBlur = 0;
+  } else {
+    // psychic / ghost / poison / dark / flying / normal: glowing orb
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 12;
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s);
+    g.addColorStop(0, P.core);
+    g.addColorStop(0.6, P.mid);
+    g.addColorStop(1, hexA(P.mid, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, s, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
+
+// Standard attack: two small type-shaped projectiles arc into the enemy — nothing full-screen
+function projectileFX(type, x0, y0, x1, y1) {
+  runFx(function(ctx, W, H, t, p) {
+    [0, 0.13].forEach(function(off) {
+      const f = (t - off) / 0.42;
+      if (f < 0 || f > 1) return;
+      const x = x0 + (x1 - x0) * f;
+      const y = y0 + (y1 - y0) * f + Math.sin(f * Math.PI) * -34;
+      // faint trailing ghost
+      const fb = Math.max(0, f - 0.09);
+      ctx.globalAlpha = 0.3;
+      ctx.save();
+      ctx.translate(x0 + (x1 - x0) * fb, y0 + (y1 - y0) * fb + Math.sin(fb * Math.PI) * -34);
+      ctx.scale(0.6, 0.6);
+      drawMiniShape(ctx, type, 13, t);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      // projectile
+      ctx.save();
+      ctx.translate(x, y);
+      if (TUMBLE_TYPES[type]) ctx.rotate(f * 5 + off * 20);
+      drawMiniShape(ctx, type, 13, t);
+      ctx.restore();
+    });
+  }, 620);
+}
+
+// Drawn impact starburst + ring where the attack lands
+function impactBurstFX(type, x, y) {
+  const P = TYPE_FX[type] || TYPE_FX.normal;
+  runFx(function(ctx, W, H, t, p) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(p * 0.5);
+    ctx.globalAlpha = 1 - p;
+    ctx.fillStyle = P.core; ctx.strokeStyle = P.edge; ctx.lineWidth = 3;
+    ctx.shadowColor = P.mid; ctx.shadowBlur = 18;
+    star8(ctx, 14 + p * 54);
+    ctx.restore();
+    ctx.globalAlpha = (1 - p) * 0.9;
+    ctx.strokeStyle = P.core; ctx.lineWidth = 4;
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(x, y, 10 + p * 90, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }, 500);
+}
+
+function triggerPokemonAttack() {
+  // Multi-type pokémon use a random type on each attack
+  const types = (currentPoke.types && currentPoke.types.length) ? currentPoke.types : ['normal'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const fx = TYPE_FX[type] || TYPE_FX.normal;
+  const pokeImg = document.getElementById('pokeImg');
+  const arena = document.getElementById('arena');
+  const target = document.getElementById('oppMember' + pokeRocketIdx);
+
+  // Clear old hint when attack starts
+  clearInterval(hintTimer);
+  sfxBlast();
+
+  const pr = pokeImg.getBoundingClientRect();
+  const tr = target ? target.getBoundingClientRect() : null;
+  const fromX = pr.left + pr.width / 2, fromY = pr.top + pr.height / 2;
+  const toX = tr ? tr.left + tr.width / 2 : fromX + 220;
+  const toY = tr ? tr.top + tr.height / 2 : fromY;
+
+  // Rare + 3rd-evolution pokémon: full-screen custom FX + rapid rumble bursts.
+  // Others: a single drawn comet streak + light double-tap.
+  if (EPIC_FILES.has(currentPoke.file)) {
+    epicAttackFX(type, toX, toY);
+    rumble([50, 40, 50, 40, 50, 40, 120]);
+    setTimeout(() => rumble([40, 30, 40, 30, 90]), 500);
+  } else {
+    projectileFX(type, fromX, fromY, toX, toY);
+    rumble([25, 35, 25]);
+  }
+
+  // Attacker lunges with its type animation
+  pokeImg.className = 'char-img poke-img ' + fx.cls;
+  setTimeout(() => { pokeImg.className = 'char-img poke-img'; }, 600);
+
+  // Impact on the target: drawn starburst + arena shake
+  setTimeout(() => {
+    if (!tr) return;
+    impactBurstFX(type, toX, toY);
+    arena.classList.add('shake');
+    setTimeout(() => arena.classList.remove('shake'), 420);
+  }, 430);
+
+  // One opponent member gets hit and blasts off
+  if (target) {
+    setTimeout(() => target.classList.add('hit'), 420);
+    setTimeout(() => {
+      target.classList.remove('hit');
+      target.classList.add('blast');
+    }, 720);
+  }
+
+  pokeRocketIdx++;
+
+  // Gym defeated → evolution celebration, then the wild encounter (grass stage)
+  setTimeout(pokeRocketIdx >= 3 ? gymDefeatedFlow : proceedNextRound, 1800);
+}
+
+function gymDefeatedFlow() {
+  if (currentEvo) runEvolution(function() { startWildEncounter(); });
+  else startWildEncounter();
+}
+
+function onWin() {
+  isWin = true;
+  clearInterval(hintTimer);
+  masterBalls++;
+  saveMasterBalls();
+  document.getElementById('winOverlay').classList.add('active');
+  speak('Parabéns! Completaste todos os desafios! Ganhaste uma Master Ball!');
+}
+
+function restartGame() {
+  phase = 1; roundInPhase = 0; score = 0; pokeRocketIdx = 3; oppBag = [];
+  gameStartedFlag = true;
+  document.getElementById('winOverlay').classList.remove('active');
+  startFight(() => {
+    loadRound();
+  });
+}
+
+function showFeedback(msg, type) {
+  const el = document.getElementById('feedbackMsg');
+  el.textContent = msg; el.className = 'msg ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 800);
+}
+
+// Initialize - set images immediately, then start game
+function setPokeImage(poke) {
+  document.getElementById('pokeImg').src = 'assets/' + poke.file;
+  document.getElementById('pokeName').textContent = poke.name;
+}
+
+// Start overlay
+function startGame() {
+  document.getElementById('startOverlay').classList.add('hidden');
+  initAudio();
+  oppBag = [];
+  gameStartedFlag = true;
+  startFight(() => {
+    phase = 1; roundInPhase = 0; score = 0;
+    document.getElementById('winOverlay').classList.remove('active');
+    loadRound();
+  });
+}
+
+// Set images on page load (hidden until start) — the player always begins with Pikachu
+setActivePoke('pikachu.png');
+currentOpp = OPPONENTS[0];
+buildOppRow();
+
+// Wild encounter + pokédex buttons
+document.getElementById('ballBtn').addEventListener('click', function() { useMasterBall = false; startCaptureChallenge(); });
+document.getElementById('masterBallBtn').addEventListener('click', function() { if (masterBalls > 0) { useMasterBall = true; startCaptureChallenge(); } });
+document.getElementById('wildSkip').addEventListener('click', endWildEncounter);
+document.getElementById('dexClose').addEventListener('click', closeDex);
+document.getElementById('dexHudBtn').addEventListener('click', openDex);
+document.getElementById('pokeSide').addEventListener('click', openDex);
+document.getElementById('dexDetail').addEventListener('click', function(e) {
+  if (e.target === this) closeDexDetail();
+});
+</script>
+</body>
+</html>
