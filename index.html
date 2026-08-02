@@ -84,6 +84,32 @@
     margin-top: 2px;
   }
 
+  /* Ground contact shadow under each fighter */
+  .arena-side::after {
+    content: ''; position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%);
+    width: 115%; height: 16px; border-radius: 50%; z-index: -1;
+    background: radial-gradient(ellipse, rgba(0,0,0,0.38), transparent 70%);
+  }
+
+  /* Attack projectile: a DOM emoji flying INSIDE the arena — same layout space as the
+     characters, so it always starts at the pokémon and lands on the enemy */
+  .proj {
+    position: absolute; z-index: 20; pointer-events: none;
+    font-size: clamp(36px, 9vw, 56px);
+    transform: translate(-50%,-50%);
+    filter: drop-shadow(0 0 10px rgba(255,240,150,0.95)) drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  }
+  .impact-pop {
+    position: absolute; z-index: 21; pointer-events: none;
+    font-size: clamp(44px, 11vw, 72px);
+    transform: translate(-50%,-50%);
+    animation: impactPop 0.5s ease-out forwards;
+  }
+  @keyframes impactPop {
+    0% { transform: translate(-50%,-50%) scale(0.3); opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1.7); opacity: 0; }
+  }
+
   .arena-side .team-rocket-col {
     display: flex; flex-direction: column;
     align-items: center; gap: 2px;
@@ -1590,10 +1616,10 @@ function startFight(callback) {
     const bgCss = 'linear-gradient(rgba(26,26,46,0.18), rgba(26,26,46,0.38)), url(assets/bg' + bgN + '.jpg)';
     gameEl.style.backgroundImage = bgCss;
     gameEl.style.backgroundSize = 'cover';
-    gameEl.style.backgroundPosition = 'center';
+    gameEl.style.backgroundPosition = 'center bottom';
     document.body.style.backgroundImage = bgCss;
     document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundPosition = 'center';
+    document.body.style.backgroundPosition = 'center bottom';
     document.getElementById('arena').style.backgroundImage = '';
     setPokeImage(currentPoke);
     buildOppRow();
@@ -2331,6 +2357,46 @@ function impactBurstFX(type, x, y) {
   }, 550);
 }
 
+// DOM projectile: positioned inside #arena — exactly the same layout space as the
+// characters, so it always starts AT the pokémon and lands ON the enemy.
+function domProjectile(type, fromEl, toEl, onImpact) {
+  const arena = document.getElementById('arena');
+  const ar = arena.getBoundingClientRect();
+  const fr = fromEl.getBoundingClientRect();
+  const tr2 = toEl ? toEl.getBoundingClientRect() : null;
+  const x0 = fr.left + fr.width / 2 - ar.left, y0 = fr.top + fr.height / 2 - ar.top;
+  const x1 = tr2 ? tr2.left + tr2.width / 2 - ar.left : ar.width * 0.8;
+  const y1 = tr2 ? tr2.top + tr2.height / 2 - ar.top : ar.height * 0.4;
+  const el = document.createElement('div');
+  el.className = 'proj';
+  el.textContent = TYPE_EMOJI[type] || '⭐';
+  arena.appendChild(el);
+  const dur = 580, t0 = performance.now();
+  (function step(now) {
+    const f = Math.min(1, (now - t0) / dur);
+    const x = x0 + (x1 - x0) * f;
+    const y = y0 + (y1 - y0) * f - Math.sin(f * Math.PI) * 30;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.transform = 'translate(-50%,-50%) scale(' + (1 + f * 0.4) + ')';
+    if (f < 1) requestAnimationFrame(step);
+    else { el.remove(); if (onImpact) onImpact(); }
+  })(t0);
+}
+
+function domImpact(toEl) {
+  const arena = document.getElementById('arena');
+  const ar = arena.getBoundingClientRect();
+  const tr2 = toEl ? toEl.getBoundingClientRect() : null;
+  const el = document.createElement('div');
+  el.className = 'impact-pop';
+  el.textContent = '💥';
+  el.style.left = (tr2 ? tr2.left + tr2.width / 2 - ar.left : ar.width * 0.8) + 'px';
+  el.style.top = (tr2 ? tr2.top + tr2.height / 2 - ar.top : ar.height * 0.4) + 'px';
+  arena.appendChild(el);
+  setTimeout(() => el.remove(), 550);
+}
+
 function triggerPokemonAttack() {
   // Multi-type pokémon use a random type on each attack
   const types = (currentPoke.types && currentPoke.types.length) ? currentPoke.types : ['normal'];
@@ -2350,28 +2416,25 @@ function triggerPokemonAttack() {
   const toX = tr ? tr.left + tr.width / 2 : fromX + 220;
   const toY = tr ? tr.top + tr.height / 2 : fromY;
 
-  // Rare + 3rd-evolution pokémon: full-screen custom FX + rapid rumble bursts.
-  // Others: a single drawn comet streak + light double-tap.
-  if (EPIC_FILES.has(currentPoke.file)) {
-    epicAttackFX(type, toX, toY);
-    rumble([50, 40, 50, 40, 50, 40, 120]);
-    setTimeout(() => rumble([40, 30, 40, 30, 90]), 500);
-  } else {
-    projectileFX(type, fromX, fromY, toX, toY);
-    rumble([25, 35, 25]);
-  }
+  // Every attack: a DOM projectile flies from the pokémon to the enemy (guaranteed
+  // alignment — same layout space). Epic (3rd-evolution) pokémon then erupt their
+  // full-screen custom FX on impact.
+  const isEpic = EPIC_FILES.has(currentPoke.file);
+  domProjectile(type, pokeImg, target, function() {
+    domImpact(target);
+    arena.classList.add('shake');
+    setTimeout(() => arena.classList.remove('shake'), 420);
+    if (isEpic) {
+      epicAttackFX(type, toX, toY);
+      rumble([50, 40, 50, 40, 50, 40, 120]);
+      setTimeout(() => rumble([40, 30, 40, 30, 90]), 500);
+    }
+  });
+  rumble([25, 35, 25]);
 
   // Attacker lunges with its type animation
   pokeImg.className = 'char-img poke-img ' + fx.cls;
   setTimeout(() => { pokeImg.className = 'char-img poke-img'; }, 600);
-
-  // Impact on the target: drawn starburst + arena shake (timed to the 0.58s flight)
-  setTimeout(() => {
-    if (!tr) return;
-    impactBurstFX(type, toX, toY);
-    arena.classList.add('shake');
-    setTimeout(() => arena.classList.remove('shake'), 420);
-  }, 600);
 
   // One opponent member gets hit and blasts off
   if (target) {
