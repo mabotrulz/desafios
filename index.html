@@ -1512,6 +1512,22 @@ const COUNT_ITEMS = [
   { emoji:'🐟', name:'peixes', f:false }, { emoji:'🌸', name:'flores', f:true },
   { emoji:'🍬', name:'doces', f:false }, { emoji:'🦋', name:'borboletas', f:true }
 ];
+// Counting objects match the gym leader's type theme (wilds get a random item)
+const OPP_COUNT_ITEM = {
+  'Team Rocket': { emoji:'⭐', name:'estrelas', f:true },
+  'Brock':       { emoji:'🪨', name:'pedras', f:true },
+  'Misty':       { emoji:'💧', name:'gotas', f:true },
+  'Lt. Surge':   { emoji:'⚡', name:'raios', f:false },
+  'Erika':       { emoji:'🌸', name:'flores', f:true },
+  'Koga':        { emoji:'🎈', name:'balões', f:false },
+  'Sabrina':     { emoji:'🔮', name:'bolas de cristal', f:true },
+  'Blaine':      { emoji:'🔥', name:'chamas', f:true },
+  'Giovanni':    { emoji:'🐉', name:'dragões', f:false },
+};
+function countItem() {
+  return (currentOpp && OPP_COUNT_ITEM[currentOpp.name]) ||
+    COUNT_ITEMS[Math.floor(Math.random() * COUNT_ITEMS.length)];
+}
 let currentChallenge = null;
 
 // Progressive difficulty: the value ceiling grows round by round.
@@ -1562,7 +1578,7 @@ function makeChallenge() {
 
   } else if (mode === 'contar') {
     const n = phase === 1 ? 1 + Math.floor(Math.random() * max) : 10 + Math.floor(Math.random() * (max - 9));
-    const item = COUNT_ITEMS[Math.floor(Math.random() * COUNT_ITEMS.length)];
+    const item = countItem();
     ch.slots = getNumberDigits(n).map(String);
     ch.pool = numPool();
     ch.itemCount = n;
@@ -1577,7 +1593,7 @@ function makeChallenge() {
     if (phase === 1) { sum = 2 + Math.floor(Math.random() * (max - 1)); a = 1 + Math.floor(Math.random() * (sum - 1)); }
     else { sum = 10 + Math.floor(Math.random() * (max - 9)); a = 2 + Math.floor(Math.random() * (sum - 3)); }
     b = sum - a;
-    const item = COUNT_ITEMS[Math.floor(Math.random() * COUNT_ITEMS.length)];
+    const item = countItem();
     ch.slots = getNumberDigits(sum).map(String);
     ch.pool = numPool();
     ch.itemCount = sum;
