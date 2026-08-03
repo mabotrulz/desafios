@@ -52,6 +52,37 @@
     transition: top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none;
   }
   .story-toast.show { top: 12px; }
+  /* Fullscreen storybook (AI-generated story scenes, tap/auto advance) */
+  .storybook { position: fixed; inset: 0; z-index: 190; display: none; background: #10101e; }
+  .storybook.active { display: block; }
+  .storybook img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .storybook .sb-caption {
+    position: absolute; left: 12px; right: 12px; bottom: 86px;
+    background: rgba(20,20,40,0.72); color: #fff; font-weight: 700;
+    font-size: clamp(15px, 4vw, 20px); line-height: 1.35; text-align: center;
+    padding: 12px 16px; border-radius: 14px; border: 2px solid rgba(255,213,79,0.65);
+  }
+  .storybook .sb-next {
+    position: absolute; right: 16px; bottom: 18px;
+    background: linear-gradient(135deg, #ffd54f, #ffb300); border: none; border-radius: 50%;
+    width: 52px; height: 52px; font-size: 24px; font-weight: 900; color: #5b3a00;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.45); cursor: pointer;
+    animation: sbPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes sbPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  .storybook .sb-skip {
+    position: absolute; top: 14px; right: 14px;
+    background: rgba(20,20,40,0.6); color: #fff; border: 1.5px solid rgba(255,255,255,0.5);
+    border-radius: 12px; padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .storybook .sb-dots { position: absolute; left: 16px; bottom: 40px; display: flex; gap: 6px; }
+  .storybook .sb-dots span { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,0.35); }
+  .storybook .sb-dots span.on { background: #ffd54f; }
+  /* HUD icon variants per story */
+  .balls-hud .pb.berry { border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: linear-gradient(180deg,#9a9a9a,#6e6e6e); }
+  .balls-hud .pb.berry.got { background: radial-gradient(circle at 35% 30%, #c39bd3, #7d3c98); border-color: #4a235a; }
+  .balls-hud .pb.crystal { border-radius: 3px; transform: rotate(45deg); width: 11px; height: 11px; background: linear-gradient(135deg,#999,#777); }
+  .balls-hud .pb.crystal.got { background: linear-gradient(135deg,#ffe082,#ffb300); border-color: #8d6e00; box-shadow: 0 0 6px rgba(255,193,7,0.7); }
   /* Story panels (AI-generated storybook scenes) */
   .story-panel {
     position: fixed; inset: 0; z-index: 180; display: none;
@@ -688,14 +719,16 @@
 <div class="game" id="game">
   <div class="header">
     <h1>⚡ Desafios ⚡</h1>
-    <div class="balls-hud" id="ballsHud" title="Pokébolas recuperadas"></div>
+    <div class="balls-hud" id="ballsHud" title="Progresso da história"></div>
     <div class="hint" id="phraseHint">Qual é o desafio?</div>
     <button class="dex-hud-btn" id="dexHudBtn" title="Pokédex">📖</button>
   </div>
-  <div class="story-toast" id="storyToast"></div>
-  <div class="story-panel" id="storyPanel">
-    <div class="sp-card"><img id="storyPanelImg" src="" alt="História"></div>
-    <div class="sp-caption" id="storyPanelCaption"></div>
+  <div class="storybook" id="storybook">
+    <img id="storybookImg" src="" alt="História">
+    <div class="sb-caption" id="storybookCap"></div>
+    <div class="sb-dots" id="storybookDots"></div>
+    <button class="sb-skip" id="storybookSkip">Saltar ➜</button>
+    <button class="sb-next" id="storybookNext">➜</button>
   </div>
 
   <!-- Arena - transparent -->
@@ -750,9 +783,8 @@
   </div>
 
   <div class="win-overlay" id="winOverlay">
-    <img class="win-story-img" src="assets/story_finale.jpg" alt="A aldeia está a salvo!">
     <h2>🏆 Parabéns!</h2>
-    <div class="sub">Recuperámos todas as Pokébolas!</div>
+    <div class="sub">A aldeia está a salvo!</div>
     <div class="win-reward" id="winReward"><img src="assets/masterball.png" alt="Master Ball"><span>Ganhaste uma Master Ball!</span></div>
     <button onclick="restartGame()">Jogar outra vez →</button>
     <button onclick="openDex()" style="margin-top:10px">📖 POKÉDEX</button>
@@ -2677,13 +2709,22 @@ function celebrate() {
 }
 
 function gymDefeatedFlow() {
-  storyGymWon();
-  setTimeout(celebrate, 700);
-  // Story panel gets its moment before the evolution/wild overlays take over
-  setTimeout(() => {
-    if (currentEvo) runEvolution(function() { startWildEncounter(); });
-    else startWildEncounter();
-  }, 2600);
+  ballsRecovered = Math.min(TOTAL_BALLS, ballsRecovered + 1);
+  updateBallsHud();
+  const pb = document.querySelectorAll('#ballsHud .pb')[ballsRecovered - 1];
+  if (pb) pb.classList.add('pop');
+  const falta = TOTAL_BALLS - ballsRecovered;
+  const line = falta > 0
+    ? currentStory.recoverOne + ' ' + (falta === 1 ? currentStory.lastOne : 'Faltam ' + falta + '!')
+    : currentStory.recoverAll;
+  // Fullscreen story beat, then the evolution/wild overlays take over
+  playStorybook([{ img: currentStory.recoverImg, text: line }], () => {
+    celebrate();
+    setTimeout(() => {
+      if (currentEvo) runEvolution(function() { startWildEncounter(); });
+      else startWildEncounter();
+    }, 1500);
+  });
 }
 
 function onWin() {
@@ -2692,27 +2733,68 @@ function onWin() {
   masterBalls++;
   saveMasterBalls();
   ballsRecovered = TOTAL_BALLS; updateBallsHud();
-  document.getElementById('winOverlay').classList.add('active');
-  speak('Recuperámos todas as Pokébolas! A aldeia está a salvo! Parabéns, ganhaste uma Master Ball!');
+  playStorybook(currentStory.finale, () => {
+    document.getElementById('winOverlay').classList.add('active');
+    speak('Parabéns! A aldeia está a salvo! Ganhaste uma Master Ball!');
+    celebrate();
+  });
 }
 
 function restartGame() {
   phase = 1; roundInPhase = 0; score = 0; pokeRocketIdx = 3; oppBag = [];
   gameStartedFlag = true;
+  currentStory = STORIES[Math.floor(Math.random() * STORIES.length)];
   ballsRecovered = 0; updateBallsHud();
   document.getElementById('winOverlay').classList.remove('active');
-  showStoryPanel('story_intro.jpg', 'Os ladrões roubaram as Pokébolas outra vez! Vamos recuperá-las!', 4200);
-  speak('Os ladrões roubaram as Pokébolas outra vez! Vamos recuperá-las!');
-  setTimeout(() => {
-    startFight(() => {
-      loadRound();
-    });
-  }, 4400);
+  playStorybook(currentStory.intro, () => {
+    startFight(() => { loadRound(); });
+  });
 }
 
-// ---------- Story arc: thieves stole the village's 6 Pokébolas ----------
+// ---------- Story arcs: 3 random stories told fullscreen ----------
+// Each: 2 intro pages (game start) + 1 recover page (each gym win) + 2 finale pages (win)
 const TOTAL_BALLS = 6; // 20 rounds ÷ 3 rounds per gym = 6 full gyms per game
 let ballsRecovered = 0;
+
+const STORIES = [
+  { id: 'pokeballs', hud: 'ball',
+    intro: [
+      { img: 's1_intro1.jpg', text: 'Era uma vez uma aldeia onde o Pikachu guardava as Poké Balls de todos os treinadores.' },
+      { img: 's1_intro2.jpg', text: 'Mas uma noite, a Team Rocket roubou as seis Poké Balls! Ajuda o Pikachu a recuperá-las!' },
+    ],
+    recoverImg: 's1_recover.jpg',
+    recoverOne: 'Recuperaste uma Poké Ball!', lastOne: 'Só falta uma!',
+    recoverAll: 'Recuperámos todas as Poké Balls!',
+    finale: [
+      { img: 's1_finale1.jpg', text: 'O Pikachu devolveu as Poké Balls à aldeia e todos bateram palmas!' },
+      { img: 's1_finale2.jpg', text: 'A aldeia fez uma grande festa! Fim!' },
+    ] },
+  { id: 'bagas', hud: 'berry',
+    intro: [
+      { img: 's2_intro1.jpg', text: 'A aldeia preparava o Festival das Bagas, com as seis bagas mágicas mais doces do mundo.' },
+      { img: 's2_intro2.jpg', text: 'Mas a Team Rocket levou as bagas mágicas! Sem elas não há festival! Vamos buscá-las!' },
+    ],
+    recoverImg: 's2_recover.jpg',
+    recoverOne: 'Recuperaste uma baga mágica!', lastOne: 'Só falta uma!',
+    recoverAll: 'Recuperámos todas as bagas mágicas!',
+    finale: [
+      { img: 's2_finale1.jpg', text: 'O Pikachu devolveu as bagas mágicas e as mesas do festival encheram-se outra vez.' },
+      { img: 's2_finale2.jpg', text: 'O Festival das Bagas foi o melhor de sempre! Fim!' },
+    ] },
+  { id: 'farol', hud: 'crystal',
+    intro: [
+      { img: 's3_intro1.jpg', text: 'Junto ao mar, o farol da aldeia brilhava com seis cristais de estrela que guiavam os barcos.' },
+      { img: 's3_intro2.jpg', text: 'Mas a Team Rocket roubou os cristais e o farol apagou-se! Vamos recuperá-los!' },
+    ],
+    recoverImg: 's3_recover.jpg',
+    recoverOne: 'Recuperaste um cristal da estrela!', lastOne: 'Só falta um!',
+    recoverAll: 'Recuperámos todos os cristais da estrela!',
+    finale: [
+      { img: 's3_finale1.jpg', text: 'O Pikachu colocou os cristais de volta no farol e a luz voltou a brilhar.' },
+      { img: 's3_finale2.jpg', text: 'Os barcos voltaram a salvo e a aldeia festejou sob a luz do farol. Fim!' },
+    ] },
+];
+let currentStory = STORIES[0];
 
 function updateBallsHud() {
   const hud = document.getElementById('ballsHud');
@@ -2720,46 +2802,45 @@ function updateBallsHud() {
   hud.innerHTML = '';
   for (let i = 0; i < TOTAL_BALLS; i++) {
     const s = document.createElement('span');
-    s.className = 'pb' + (i < ballsRecovered ? ' got' : '');
+    s.className = 'pb ' + currentStory.hud + (i < ballsRecovered ? ' got' : '');
     hud.appendChild(s);
   }
 }
 
-let storyToastTimer = null;
-function showStory(text) {
-  const t = document.getElementById('storyToast');
-  t.textContent = text;
-  t.classList.add('show');
-  clearTimeout(storyToastTimer);
-  storyToastTimer = setTimeout(() => t.classList.remove('show'), 4200);
+// Fullscreen storybook engine: narration auto-advances (voice end or timer),
+// tap anywhere flips the page, "Saltar" skips the rest. The game only continues
+// when the story is fully done — nothing interrupts the narration.
+let sbPages = [], sbIdx = 0, sbDone = null, sbTimer = null, sbToken = 0;
+function playStorybook(pages, onDone) {
+  sbPages = pages; sbIdx = 0; sbDone = onDone;
+  document.getElementById('storybook').classList.add('active');
+  showStoryPage();
 }
-
-// Storybook panel: AI-generated scene + caption, tap-to-skip, auto-dismiss
-let storyPanelTimer = null;
-function showStoryPanel(img, caption, ms) {
-  ms = ms || 4200;
-  document.getElementById('storyPanelImg').src = 'assets/' + img;
-  document.getElementById('storyPanelCaption').textContent = caption;
-  document.getElementById('storyPanel').classList.add('active');
-  clearTimeout(storyPanelTimer);
-  storyPanelTimer = setTimeout(hideStoryPanel, ms);
+function showStoryPage() {
+  const myToken = ++sbToken;
+  const pg = sbPages[sbIdx];
+  document.getElementById('storybookImg').src = 'assets/' + pg.img;
+  document.getElementById('storybookCap').textContent = pg.text;
+  document.getElementById('storybookNext').textContent = sbIdx < sbPages.length - 1 ? '➜' : '✔';
+  const dots = document.getElementById('storybookDots');
+  dots.innerHTML = '';
+  sbPages.forEach((_, i) => { const d = document.createElement('span'); if (i === sbIdx) d.className = 'on'; dots.appendChild(d); });
+  clearTimeout(sbTimer);
+  sbTimer = setTimeout(() => { if (myToken === sbToken) advanceStory(); }, Math.min(9500, Math.max(5200, pg.text.length * 90)));
+  speak(pg.text, () => { if (myToken === sbToken) advanceStory(); });
 }
-function hideStoryPanel() {
-  clearTimeout(storyPanelTimer);
-  document.getElementById('storyPanel').classList.remove('active');
+function advanceStory() {
+  clearTimeout(sbTimer);
+  sbToken++;
+  sbIdx++;
+  if (sbIdx >= sbPages.length) endStorybook(); else showStoryPage();
 }
-
-function storyGymWon() {
-  ballsRecovered = Math.min(TOTAL_BALLS, ballsRecovered + 1);
-  updateBallsHud();
-  const pb = document.querySelectorAll('#ballsHud .pb')[ballsRecovered - 1];
-  if (pb) pb.classList.add('pop');
-  const falta = TOTAL_BALLS - ballsRecovered;
-  const line = falta > 0
-    ? 'Recuperaste uma Pokébola! ' + (falta === 1 ? 'Só falta uma!' : 'Faltam ' + falta + '!')
-    : 'Recuperámos todas as Pokébolas!';
-  showStoryPanel('story_recover.jpg', '🔴 ' + line, 3000);
-  speak(line);
+function endStorybook() {
+  clearTimeout(sbTimer);
+  sbToken++;
+  document.getElementById('storybook').classList.remove('active');
+  const cb = sbDone; sbDone = null; sbPages = [];
+  if (cb) cb();
 }
 
 function showFeedback(msg, type) {
@@ -2781,23 +2862,23 @@ function startGame() {
   initAudio();
   oppBag = [];
   gameStartedFlag = true;
+  currentStory = STORIES[Math.floor(Math.random() * STORIES.length)];
   ballsRecovered = 0; updateBallsHud();
-  // Story kickoff: panel first, then the fight intro begins
-  showStoryPanel('story_intro.jpg', 'Os ladrões roubaram as 6 Pokébolas da aldeia! Ganha batalhas para as recuperar!', 4600);
-  speak('Os ladrões roubaram as Pokébolas da aldeia! Ajuda o teu Pokémon a recuperá-las todas!');
-  setTimeout(() => {
+  // Story first, fullscreen — the fight intro only starts when the story ends
+  playStorybook(currentStory.intro, () => {
     startFight(() => {
       phase = 1; roundInPhase = 0; score = 0;
       document.getElementById('winOverlay').classList.remove('active');
       loadRound();
     });
-  }, 4800);
+  });
 }
 
 // Set images on page load (hidden until start) — the player always begins with Pikachu
 setActivePoke('pikachu.png');
 updateBallsHud();
-document.getElementById('storyPanel').addEventListener('click', hideStoryPanel);
+document.getElementById('storybook').addEventListener('click', advanceStory);
+document.getElementById('storybookSkip').addEventListener('click', function(e) { e.stopPropagation(); endStorybook(); });
 currentOpp = OPPONENTS[0];
 buildOppRow();
 
