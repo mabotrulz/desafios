@@ -52,6 +52,27 @@
     transition: top 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none;
   }
   .story-toast.show { top: 12px; }
+  /* Story panels (AI-generated storybook scenes) */
+  .story-panel {
+    position: fixed; inset: 0; z-index: 180; display: none;
+    align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(20,20,40,0.55);
+  }
+  .story-panel.active { display: flex; }
+  .story-panel .sp-card {
+    width: min(88vw, 480px); border-radius: 18px; overflow: hidden;
+    border: 3px solid #ffd54f; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    animation: spIn 0.45s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .story-panel .sp-card img { width: 100%; display: block; }
+  .story-panel .sp-caption {
+    margin-top: 10px; background: linear-gradient(135deg, #fff8e1, #ffe9b3);
+    color: #6b4a00; font-weight: 800; font-size: clamp(14px, 3.4vw, 18px);
+    padding: 10px 18px; border-radius: 14px; text-align: center; max-width: 88vw;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  }
+  @keyframes spIn { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .win-story-img { width: min(80vw, 340px); border-radius: 14px; border: 3px solid #ffd54f; margin-bottom: 8px; }
   .header h1 {
     color: #ffe259; font-size: clamp(13px, 3vw, 18px);
     font-weight: 900; letter-spacing: 2px;
@@ -627,9 +648,11 @@
 .start-overlay .toggle.active{background:#55efc4!important;border-color:#2fd4a7!important}
 
 /* Question visual for contar / somar / sequência (hidden for números & letras) */
-.challenge-q{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 8px;
+.challenge-q{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;align-content:center;gap:4px 8px;
   padding:2px 14px;font-size:clamp(38px,9vw,62px);font-weight:800;color:#fff;line-height:1.25;
-  text-shadow:0 2px 8px rgba(0,0,0,0.45);max-width:640px;margin:0 auto}
+  text-shadow:0 2px 8px rgba(0,0,0,0.45);max-width:640px;margin:0 auto;
+  /* fixed strip = largest needed space, so the arena/scenario never jumps between game types */
+  min-height:clamp(104px,24vw,168px);overflow:hidden}
 .challenge-q .seq-blank{color:#ffe259;text-shadow:0 0 12px rgba(255,226,89,0.7)}
 .challenge-q.compact{font-size:clamp(20px,5.2vw,32px);gap:2px 5px}
 .challenge-q .sum-group b{color:#ffe259;margin-right:3px;text-shadow:0 2px 6px rgba(0,0,0,0.5)}
@@ -670,6 +693,10 @@
     <button class="dex-hud-btn" id="dexHudBtn" title="Pokédex">📖</button>
   </div>
   <div class="story-toast" id="storyToast"></div>
+  <div class="story-panel" id="storyPanel">
+    <div class="sp-card"><img id="storyPanelImg" src="" alt="História"></div>
+    <div class="sp-caption" id="storyPanelCaption"></div>
+  </div>
 
   <!-- Arena - transparent -->
   <div class="arena" id="arena">
@@ -723,8 +750,9 @@
   </div>
 
   <div class="win-overlay" id="winOverlay">
+    <img class="win-story-img" src="assets/story_finale.jpg" alt="A aldeia está a salvo!">
     <h2>🏆 Parabéns!</h2>
-    <div class="sub">Completaste todos os desafios!</div>
+    <div class="sub">Recuperámos todas as Pokébolas!</div>
     <div class="win-reward" id="winReward"><img src="assets/masterball.png" alt="Master Ball"><span>Ganhaste uma Master Ball!</span></div>
     <button onclick="restartGame()">Jogar outra vez →</button>
     <button onclick="openDex()" style="margin-top:10px">📖 POKÉDEX</button>
@@ -1456,6 +1484,30 @@ let currentChallenge = null;
 
 // Progressive difficulty: the value ceiling grows round by round.
 // Phase 1 ramps 5 → 10, phase 2 ramps 12 → 20.
+// Distance from the viewport bottom to the fighters' feet (arena bottom).
+// The background image is lifted by this amount so its floor line sits under the fighters.
+function updateFloorY() {
+  const arena = document.getElementById('arena');
+  if (!arena) return;
+  const gap = Math.max(0, Math.round(window.innerHeight - arena.getBoundingClientRect().bottom));
+  document.documentElement.style.setProperty('--floor-y', gap + 'px');
+}
+window.addEventListener('resize', updateFloorY);
+
+// Auto-shrink the challenge strip's font until its content fits the fixed strip
+// (keeps big counting rounds from pushing the arena/scenario around)
+function fitChallengeQ() {
+  const q = document.getElementById('challengeQ');
+  if (!q) return;
+  q.style.fontSize = '';
+  let fs = parseFloat(getComputedStyle(q).fontSize);
+  let guard = 40;
+  while (q.scrollHeight > q.clientHeight + 1 && fs > 16 && guard-- > 0) {
+    fs -= 2;
+    q.style.fontSize = fs + 'px';
+  }
+}
+
 function currentMax() {
   const base = phase === 1 ? Math.min(10, 5 + roundInPhase) : Math.min(20, 12 + roundInPhase);
   const floor = phase === 1 ? 4 : 11, cap = phase === 1 ? 10 : 20;
@@ -1547,9 +1599,13 @@ function presentChallenge(ch) {
   document.getElementById('phraseHint').textContent = ch.hint;
   const q = document.getElementById('challengeQ');
   q.innerHTML = ch.questionHTML;
-  q.style.display = ch.questionHTML ? 'flex' : 'none';
+  // Keep the strip visible even when empty — its fixed min-height is what stops
+  // the arena/scenario from jumping between game types
+  q.style.display = 'flex';
   q.classList.toggle('compact', (ch.itemCount || 0) > 12);
+  fitChallengeQ();
   buildChallenge(ch);
+  requestAnimationFrame(() => requestAnimationFrame(updateFloorY));
   speak(ch.speakText);
   clearInterval(hintTimer);
   hintTimer = setInterval(() => speak(ch.speakText), 5000);
@@ -1689,17 +1745,22 @@ function startFight(callback) {
     currentOpp = OPPONENTS[oppIdx];
 
     pokeRocketIdx = 0;
-    // Fresh scenery for every fight — full screen, behind everything
+    // Fresh scenery for every fight — full screen, behind everything.
+    // The image layer is lifted by --floor-y so its painted floor line lands
+    // exactly at the fighters' feet (arena bottom), not behind the number pad.
     const bgN = 1 + Math.floor(Math.random() * 6);
     const gameEl = document.querySelector('.game');
-    const bgCss = 'linear-gradient(rgba(26,26,46,0.18), rgba(26,26,46,0.38)), url(assets/bg' + bgN + '.jpg)';
+    const bgCss = 'linear-gradient(rgba(26,26,46,0.18), rgba(26,26,46,0.38)), url(assets/bg' + bgN + '.jpg), linear-gradient(180deg, #232342, #1a1a2e)';
+    const bgSize = 'cover, cover, cover';
+    const bgPos = 'center, center calc(100% - var(--floor-y, 0px)), center';
     gameEl.style.backgroundImage = bgCss;
-    gameEl.style.backgroundSize = 'cover';
-    gameEl.style.backgroundPosition = 'center bottom';
+    gameEl.style.backgroundSize = bgSize;
+    gameEl.style.backgroundPosition = bgPos;
     document.body.style.backgroundImage = bgCss;
-    document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundPosition = 'center bottom';
+    document.body.style.backgroundSize = bgSize;
+    document.body.style.backgroundPosition = bgPos;
     document.getElementById('arena').style.backgroundImage = '';
+    requestAnimationFrame(() => requestAnimationFrame(updateFloorY));
     setPokeImage(currentPoke);
     buildOppRow();
 
@@ -2618,8 +2679,11 @@ function celebrate() {
 function gymDefeatedFlow() {
   storyGymWon();
   setTimeout(celebrate, 700);
-  if (currentEvo) runEvolution(function() { startWildEncounter(); });
-  else startWildEncounter();
+  // Story panel gets its moment before the evolution/wild overlays take over
+  setTimeout(() => {
+    if (currentEvo) runEvolution(function() { startWildEncounter(); });
+    else startWildEncounter();
+  }, 2600);
 }
 
 function onWin() {
@@ -2637,16 +2701,16 @@ function restartGame() {
   gameStartedFlag = true;
   ballsRecovered = 0; updateBallsHud();
   document.getElementById('winOverlay').classList.remove('active');
-  startFight(() => {
-    loadRound();
-  });
+  showStoryPanel('story_intro.jpg', 'Os ladrões roubaram as Pokébolas outra vez! Vamos recuperá-las!', 4200);
+  speak('Os ladrões roubaram as Pokébolas outra vez! Vamos recuperá-las!');
   setTimeout(() => {
-    showStory('🚨 A Equipa Rocket roubou as Pokébolas outra vez! Vamos recuperá-las!');
-    speak('A Equipa Rocket roubou as Pokébolas outra vez! Vamos recuperá-las!');
-  }, 5200);
+    startFight(() => {
+      loadRound();
+    });
+  }, 4400);
 }
 
-// ---------- Story arc: Team Rocket stole the village's 6 Pokébolas ----------
+// ---------- Story arc: thieves stole the village's 6 Pokébolas ----------
 const TOTAL_BALLS = 6; // 20 rounds ÷ 3 rounds per gym = 6 full gyms per game
 let ballsRecovered = 0;
 
@@ -2670,6 +2734,21 @@ function showStory(text) {
   storyToastTimer = setTimeout(() => t.classList.remove('show'), 4200);
 }
 
+// Storybook panel: AI-generated scene + caption, tap-to-skip, auto-dismiss
+let storyPanelTimer = null;
+function showStoryPanel(img, caption, ms) {
+  ms = ms || 4200;
+  document.getElementById('storyPanelImg').src = 'assets/' + img;
+  document.getElementById('storyPanelCaption').textContent = caption;
+  document.getElementById('storyPanel').classList.add('active');
+  clearTimeout(storyPanelTimer);
+  storyPanelTimer = setTimeout(hideStoryPanel, ms);
+}
+function hideStoryPanel() {
+  clearTimeout(storyPanelTimer);
+  document.getElementById('storyPanel').classList.remove('active');
+}
+
 function storyGymWon() {
   ballsRecovered = Math.min(TOTAL_BALLS, ballsRecovered + 1);
   updateBallsHud();
@@ -2679,7 +2758,7 @@ function storyGymWon() {
   const line = falta > 0
     ? 'Recuperaste uma Pokébola! ' + (falta === 1 ? 'Só falta uma!' : 'Faltam ' + falta + '!')
     : 'Recuperámos todas as Pokébolas!';
-  showStory('🔴 ' + line);
+  showStoryPanel('story_recover.jpg', '🔴 ' + line, 3000);
   speak(line);
 }
 
@@ -2703,21 +2782,22 @@ function startGame() {
   oppBag = [];
   gameStartedFlag = true;
   ballsRecovered = 0; updateBallsHud();
-  startFight(() => {
-    phase = 1; roundInPhase = 0; score = 0;
-    document.getElementById('winOverlay').classList.remove('active');
-    loadRound();
-  });
-  // Story kickoff (once the fight intro voice has had its say)
+  // Story kickoff: panel first, then the fight intro begins
+  showStoryPanel('story_intro.jpg', 'Os ladrões roubaram as 6 Pokébolas da aldeia! Ganha batalhas para as recuperar!', 4600);
+  speak('Os ladrões roubaram as Pokébolas da aldeia! Ajuda o teu Pokémon a recuperá-las todas!');
   setTimeout(() => {
-    showStory('🚨 A Equipa Rocket roubou as 6 Pokébolas da aldeia! Ganha batalhas para as recuperar!');
-    speak('A Equipa Rocket roubou as Pokébolas da aldeia! Ajuda o teu Pokémon a recuperá-las todas!');
-  }, 5200);
+    startFight(() => {
+      phase = 1; roundInPhase = 0; score = 0;
+      document.getElementById('winOverlay').classList.remove('active');
+      loadRound();
+    });
+  }, 4800);
 }
 
 // Set images on page load (hidden until start) — the player always begins with Pikachu
 setActivePoke('pikachu.png');
 updateBallsHud();
+document.getElementById('storyPanel').addEventListener('click', hideStoryPanel);
 currentOpp = OPPONENTS[0];
 buildOppRow();
 
